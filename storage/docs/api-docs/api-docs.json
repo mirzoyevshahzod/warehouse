@@ -1,0 +1,653 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Transport Monitoring API",
+        "description": "API Documentation",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://warehouse.izisol.uz",
+            "description": "Local Server"
+        },
+        {
+            "url": "/api"
+        }
+    ],
+    "paths": {
+        "/api/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "User login",
+                "operationId": "44212a9096e4b09358281e9ec8a0701d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "example": "warefordata@izisol.uz"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "2026%E@stline"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful"
+                    }
+                }
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "User logout",
+                "operationId": "79854151e609bd20032aa5aa4d5a35c0",
+                "responses": {
+                    "200": {
+                        "description": "Logout successful"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/checked-qozoq/import": {
+            "post": {
+                "tags": [
+                    "Eksport"
+                ],
+                "summary": "Excel orqali Qozoq ma'lumotlarini yuklash",
+                "operationId": "79ee23eafebf91e0662a5b2c54b7fddb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Excel muvaffaqiyatli yuklandi"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/checked-qozoq": {
+            "get": {
+                "tags": [
+                    "Eksport"
+                ],
+                "summary": "Qozoq transport ro'yxatini olish",
+                "operationId": "7a352bb90bc1ecbddd4543c367f5e1d8",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_number",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "company_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_type",
+                        "in": "query",
+                        "description": "uz yoki foreign",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Qozoq ma'lumotlari"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/checked-qozoq/export": {
+            "get": {
+                "tags": [
+                    "Eksport"
+                ],
+                "summary": "Qozoq ma'lumotlarini Excel qilib yuklab olish",
+                "operationId": "b34ad008480bba6a3f46a12f62f243e2",
+                "responses": {
+                    "200": {
+                        "description": "Excel file yuklanadi"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/import-eksport-qozoq/import": {
+            "post": {
+                "tags": [
+                    "Import Eksport Qozoq"
+                ],
+                "summary": "Excel fayl yuklash (Qozoq)",
+                "operationId": "7449adc44f0083af7b94683e4d0dea05",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel fayl (xlsx, xls, csv)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Fayl muvaffaqiyatli yuklandi"
+                    }
+                }
+            }
+        },
+        "/api/import-eksport-qozoq": {
+            "get": {
+                "tags": [
+                    "Import Eksport Qozoq"
+                ],
+                "summary": "Qozoq import list (filter bilan)",
+                "operationId": "c25a7c82c3bc32ea7a441f0404c4b758",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "description": "Chegara nomi",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_number",
+                        "in": "query",
+                        "description": "Mashina raqami",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "description": "Sana (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Status",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "company_name",
+                        "in": "query",
+                        "description": "Kompaniya nomi yoki '-'",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_type",
+                        "in": "query",
+                        "description": "uz yoki foreign",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "uz",
+                                "foreign"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List qaytadi"
+                    }
+                }
+            }
+        },
+        "/api/import-eksport-qozoq/export": {
+            "get": {
+                "tags": [
+                    "Import Eksport Qozoq"
+                ],
+                "summary": "Excel export qilish",
+                "operationId": "ad6803fffb625d80616608095ad02eb2",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel fayl yuklab olinadi",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    }
+                }
+            }
+        },
+        "/api/import-qozoq/import": {
+            "post": {
+                "tags": [
+                    "Import Qozoq"
+                ],
+                "summary": "Excel fayl yuklash (Qozoq)",
+                "operationId": "2491e41441797df0f0b48ac2d343e30d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel fayl (xlsx, xls, csv)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Fayl muvaffaqiyatli yuklandi"
+                    }
+                }
+            }
+        },
+        "/api/import-qozoq": {
+            "get": {
+                "tags": [
+                    "Import Qozoq"
+                ],
+                "summary": "Qozoq import list (filter bilan)",
+                "operationId": "cf3a29f2dfdf1b892bb46d8eacae5cd3",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "description": "Chegara nomi",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_number",
+                        "in": "query",
+                        "description": "Mashina raqami",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "description": "Sana (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Status",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "company_name",
+                        "in": "query",
+                        "description": "Kompaniya nomi yoki '-'",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_type",
+                        "in": "query",
+                        "description": "uz yoki foreign",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "uz",
+                                "foreign"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List qaytadi"
+                    }
+                }
+            }
+        },
+        "/api/import-qozoq/export": {
+            "get": {
+                "tags": [
+                    "Import Qozoq"
+                ],
+                "summary": "Excel export qilish",
+                "operationId": "3a89e3b7a66788da1c8585b59beeee1e",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel fayl yuklab olinadi",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qozoq/import": {
+            "post": {
+                "tags": [
+                    "Umumiy"
+                ],
+                "summary": "Excel orqali Qozoq ma'lumotlarini yuklash",
+                "operationId": "c61ff117862a2473c75a05a373511c37",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Excel muvaffaqiyatli yuklandi"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/qozoq": {
+            "get": {
+                "tags": [
+                    "Umumiy"
+                ],
+                "summary": "Qozoq transport ro'yxatini olish",
+                "operationId": "5d17886ddd588b887d01a80d0a483050",
+                "parameters": [
+                    {
+                        "name": "boundary_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_number",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "company_name",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "car_type",
+                        "in": "query",
+                        "description": "uz yoki foreign",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Qozoq ma'lumotlari"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/qozoq/export": {
+            "get": {
+                "tags": [
+                    "Umumiy"
+                ],
+                "summary": "Qozoq ma'lumotlarini Excel qilib yuklab olish",
+                "operationId": "13eb20b38bbd45a9cdf777ac14215f7c",
+                "responses": {
+                    "200": {
+                        "description": "Excel file yuklanadi"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/test": {
+            "get": {
+                "tags": [
+                    "Test"
+                ],
+                "summary": "Swagger test endpoint",
+                "operationId": "ec603d65fcc1218e36c46e1fcf448346",
+                "responses": {
+                    "200": {
+                        "description": "Test success"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Test",
+            "description": "Test API endpoints"
+        },
+        {
+            "name": "Auth",
+            "description": "Auth"
+        },
+        {
+            "name": "Eksport",
+            "description": "Eksport"
+        },
+        {
+            "name": "Import Eksport Qozoq",
+            "description": "Import Eksport Qozoq"
+        },
+        {
+            "name": "Import Qozoq",
+            "description": "Import Qozoq"
+        },
+        {
+            "name": "Umumiy",
+            "description": "Umumiy"
+        }
+    ]
+}
