@@ -324,7 +324,21 @@
 
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = "export.xlsx"; // backend nom bermasa
+
+            let fileName = 'qozoq';
+
+            if (date) {
+                fileName += `_${date}_00-00-00`;
+            }
+
+            if (status) {
+                fileName += `_${status}`;
+            }
+
+            fileName += '_tekshirilgan.xlsx';
+
+            a.download = fileName;
+
             document.body.appendChild(a);
             a.click();
             a.remove();

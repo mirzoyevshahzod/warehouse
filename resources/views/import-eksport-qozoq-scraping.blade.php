@@ -133,13 +133,23 @@
                 </div>
 
                 <div class="search-box">
-                    <label>Vaqt bo'yicha</label>
+                    <label>Vaqtdan boshlab</label>
                     <div class="input-wrapper">
                         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"></circle>
                             <path d="m21 21-4.35-4.35"></path>
                         </svg>
-                        <input type="date" id="searchDate">
+                        <input type="date" id="from_date">
+                    </div>
+                </div>
+                <div class="search-box">
+                    <label>Vaqtgacha</label>
+                    <div class="input-wrapper">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="date" id="to_date">
                     </div>
                 </div>
 
@@ -276,7 +286,8 @@
 
         const boundary = document.getElementById('searchBoundary')?.value;
         const car = document.getElementById('searchCar')?.value;
-        const date = document.getElementById('searchDate')?.value;
+        const fromDate = document.getElementById('from_date')?.value;
+        const toDate = document.getElementById('to_date')?.value;
         const status = document.getElementById('searchStatus')?.value;
         const company = document.getElementById('searchCompany')?.value;
         const carType = document.getElementById('searchCarType')?.value;
@@ -285,7 +296,8 @@
 
         if (boundary) url.searchParams.append('boundary_name', boundary);
         if (car) url.searchParams.append('car_number', car);
-        if (date) url.searchParams.append('date', date);
+        if (fromDate) url.searchParams.append('from_date', fromDate);
+        if (toDate) url.searchParams.append('to_date', toDate);
         if (status) url.searchParams.append('status', status);
         if (company) url.searchParams.append('company_name', company);
         if (carType) url.searchParams.append('car_type', carType);
@@ -328,7 +340,8 @@
 
             const boundary = document.getElementById('searchBoundary')?.value;
             const car = document.getElementById('searchCar')?.value;
-            const date = document.getElementById('searchDate')?.value;
+            const fromDate = document.getElementById('from_date')?.value;
+            const toDate = document.getElementById('to_date')?.value;
             const status = document.getElementById('searchStatus')?.value;
             const company = document.getElementById('searchCompany')?.value;
             const carType = document.getElementById('searchCarType')?.value;
@@ -340,7 +353,8 @@
 
             if (boundary) url.searchParams.append('boundary_name', boundary);
             if (car) url.searchParams.append('car_number', car);
-            if (date) url.searchParams.append('date', date);
+            if (fromDate) url.searchParams.append('from_date', fromDate);
+            if (toDate) url.searchParams.append('to_date', toDate);
             if (status) url.searchParams.append('status', status);
             if (company) url.searchParams.append('company_name', company);
             if (carType) url.searchParams.append('car_type', carType);
@@ -496,19 +510,30 @@
             });
         });
 
-        loadQozoqData();
-        [
-            'searchBoundary',
-            'searchCar',
-            'searchDate',
-            'searchStatus',
-            'searchCompany',
-            'searchCarType',
-        ].forEach(id => {
-            document.getElementById(id)?.addEventListener('input', () => {
-                loadQozoqData(1); // 🔥 doim 1-sahifa
-            });
+     loadQozoqData();
+
+    [
+        'searchBoundary',
+        'searchCar',
+        'from_date',
+        'to_date',
+        'searchStatus',
+        'searchCompany',
+        'searchCarType',
+    ].forEach(id => {
+
+        const element = document.getElementById(id);
+
+        if (!element) return;
+
+        const event = element.tagName === 'SELECT' || element.type === 'date'
+            ? 'change'
+            : 'input';
+
+        element.addEventListener(event, () => {
+            loadQozoqData(1);
         });
+    });
 
 
     </script>

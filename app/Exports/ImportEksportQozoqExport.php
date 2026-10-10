@@ -40,8 +40,15 @@ class ImportEksportQozoqExport implements FromQuery, WithHeadings
             $query->where('car_number', 'like', '%' . $this->request->car_number . '%');
         }
 
-        if ($this->request->date) {
-            $query->whereDate('date_and_time', $this->request->date);
+        if ($this->request->filled('from_date') && $this->request->filled('to_date')) {
+            $query->whereBetween('date_and_time', [
+                $this->request->from_date . ' 00:00:00',
+                $this->request->to_date . ' 23:59:59',
+            ]);
+        } elseif ($this->request->filled('from_date')) {
+            $query->where('date_and_time', '>=', $this->request->from_date . ' 00:00:00');
+        } elseif ($this->request->filled('to_date')) {
+            $query->where('date_and_time', '<=', $this->request->to_date . ' 23:59:59');
         }
 
         if ($this->request->status) {

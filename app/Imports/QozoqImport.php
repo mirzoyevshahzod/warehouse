@@ -57,10 +57,13 @@ class QozoqImport implements
         }
 
         try {
-            $parts = explode(' ', $value);
-            $datePart = $parts[0];
+            // 05.05.2026 00:00-01:00
+            [$date, $timeRange] = explode(' ', $value);
 
-            return Carbon::createFromFormat('d.m.Y', $datePart)
+            // 00:00 ni olish
+            [$startTime] = explode('-', $timeRange);
+
+            return Carbon::createFromFormat('d.m.Y H:i', "$date $startTime")
                 ->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
             return null;

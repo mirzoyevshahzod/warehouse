@@ -125,8 +125,16 @@ class ImportEksportQozoqContoller extends Controller
             $query->where('car_number', 'like', '%' . $request->car_number . '%');
         }
 
-        if ($request->date) {
-            $query->whereDate('date_and_time', $request->date);
+       // Sana oralig'i
+        if ($request->filled('from_date') && $request->filled('to_date')) {
+            $query->whereBetween('date_and_time', [
+                $request->from_date,
+                $request->to_date,
+            ]);
+        } elseif ($request->filled('from_date')) {
+            $query->where('date_and_time', '>=', $request->from_date);
+        } elseif ($request->filled('to_date')) {
+            $query->where('date_and_time', '<=', $request->to_date);
         }
 
         if ($request->status) {
@@ -163,10 +171,6 @@ class ImportEksportQozoqContoller extends Controller
                 ");
             }
         }
-
-
-
-
 
         $data = $query->orderBy('id','desc')->paginate(30);
 

@@ -27,7 +27,7 @@ class EOmborController extends Controller
 
     public function index(Request $request)
     {
-        $query = Eombor::query()->orderBy('custom_date', 'desc');
+        $query = Eombor::query()->orderBy('document_number', 'desc');
 
         // 1. Hujjat raqam
         if ($request->document_number) {

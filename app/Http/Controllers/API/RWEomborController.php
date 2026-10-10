@@ -29,7 +29,7 @@ class RWEomborController extends Controller
 
     public function index(Request $request)
     {
-        $query = RWEombor::query()->orderBy('custom_date', 'desc');
+        $query = RWEombor::query()->orderBy('document_number', 'desc');
 
         // 1. Hujjat raqam
         if ($request->document_number) {
