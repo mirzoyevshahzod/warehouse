@@ -44,6 +44,18 @@ return [
             'after_commit' => false,
         ],
 
+        // Uzoq ishlaydigan import/export job'lari uchun (O'zbekiston import ma'lumotlari).
+        // retry_after job timeout'idan (3600s) katta bo'lishi shart, aks holda job ikki marta ishga tushadi.
+        // Worker: php artisan queue:work database-long --queue=exports --timeout=3600
+        'database-long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'exports',
+            'retry_after' => 3700,
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

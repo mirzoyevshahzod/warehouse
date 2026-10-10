@@ -15,6 +15,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CheckedQozoqController;
 use App\Http\Controllers\API\ImportQozoqController;
 use App\Http\Controllers\API\ImportEksportQozoqContoller;
+use App\Http\Controllers\API\UzbekistanImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\TestController;
 use App\Http\Controllers\API\DriverController;
@@ -78,6 +79,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/import-eksport-qozoq/import', [ImportEksportQozoqContoller::class, 'import']);
     Route::get('/import-eksport-qozoq', [ImportEksportQozoqContoller::class, 'index']);
     Route::get('/import-eksport-qozoq/export', [ImportEksportQozoqContoller::class, 'export']);
+
+    Route::get('/uzbekistan-import', [UzbekistanImportController::class, 'index']);
+    Route::get('/uzbekistan-import/columns', [UzbekistanImportController::class, 'columns']);
+    Route::get('/uzbekistan-import/filter-options', [UzbekistanImportController::class, 'filterOptions']);
+    Route::post('/uzbekistan-import/import', [UzbekistanImportController::class, 'import']);
+    Route::post('/uzbekistan-import/export', [UzbekistanImportController::class, 'export']);
+    Route::get('/uzbekistan-import/tasks', [UzbekistanImportController::class, 'tasks']);
+    Route::get('/uzbekistan-import/tasks/{task}', [UzbekistanImportController::class, 'task']);
+    Route::get('/uzbekistan-import/tasks/{task}/download', [UzbekistanImportController::class, 'download']);
 
     Route::post('/checked-qozoq/import', [CheckedQozoqController::class, 'import']);
     Route::get('/checked-qozoq', [CheckedQozoqController::class, 'index']);

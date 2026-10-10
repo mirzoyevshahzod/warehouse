@@ -542,6 +542,14 @@
                 <p>Haydovchilar ma'lumotlarini yig'ing.</p>
                 <a href="{{ route('drivers') }}" class="btn btn-primary">Boshlash</a>
             </div>
+
+            <!-- O'zbekiston import -->
+            <div class="service-card">
+                <div class="service-icon">🇺🇿</div>
+                <h3>O'zbekiston Import</h3>
+                <p>O'zbekistonga import qilingan tovarlar bo'yicha bojxona deklaratsiyalari: importyor, eksportyor, tovar, summa va transport ma'lumotlari.</p>
+                <a href="{{ route('uzbekistanImport') }}" class="btn btn-primary">Boshlash</a>
+            </div>
             
 
     </div>

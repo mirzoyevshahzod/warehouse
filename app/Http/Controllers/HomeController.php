@@ -107,5 +107,10 @@ class HomeController extends Controller
         return view('drivers');
     }
 
+    public function uzbekistanImport()
+    {
+        return view('uzbekistan-import');
+    }
+
 
 }
