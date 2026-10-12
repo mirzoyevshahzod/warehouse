@@ -1242,6 +1242,7 @@
 
     const tasks = new Map();      // id => task
     const autoDownload = new Set(); // shu sahifada boshlangan exportlar — tayyor bo'lsa avtomatik yuklab olinadi
+    const ownUploads = new Set();   // shu sahifada yuklangan fayllar — boshqa bo'limga tushsa ham ko'rinib turadi
     let uploadProgress = null;    // {name, percent}
     let pollTimer = null;
 
@@ -1255,7 +1256,11 @@
     function renderTasks() {
         const section = document.getElementById('tasksSection');
         const list = document.getElementById('tasksList');
-        const items = [...tasks.values()].sort((a, b) => b.id - a.id).slice(0, 5);
+        // faqat shu bo'limning vazifalari (+ shu yerda yuklangan, lekin boshqa bo'limga tushgan fayllar)
+        const items = [...tasks.values()]
+            .filter(t => (t.dataset || 'import') === DATASET || ownUploads.has(t.id))
+            .sort((a, b) => b.id - a.id)
+            .slice(0, 5);
 
         section.hidden = !items.length && !uploadProgress;
 
@@ -1321,7 +1326,7 @@
 
     async function loadTasks() {
         try {
-            const result = await api(`${TASKS_API}/tasks`);
+            const result = await api(`${TASKS_API}/tasks?dataset=${DATASET}`);
             result.data.data.slice(0, 5).forEach(t => tasks.set(t.id, t));
             renderTasks();
             schedulePoll();
@@ -1393,6 +1398,7 @@
 
             if (xhr.status === 202 && result?.data) {
                 tasks.set(result.data.id, result.data);
+                ownUploads.add(result.data.id);
                 renderTasks();
                 schedulePoll();
             } else {
