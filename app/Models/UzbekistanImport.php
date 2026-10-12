@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use App\Support\ExcelFilter;
-use Illuminate\Database\Eloquent\Builder;
+use App\Models\Concerns\HasExcelColumns;
 use Illuminate\Database\Eloquent\Model;
 
 class UzbekistanImport extends Model
 {
+    use HasExcelColumns;
+
     protected $table = 'uzbekistan_imports';
 
     /**
@@ -134,44 +135,4 @@ class UzbekistanImport extends Model
         'contract_date' => 'date:Y-m-d',
         'transit_date' => 'date:Y-m-d',
     ];
-
-    public function getFillable()
-    {
-        return array_keys(self::LABELS);
-    }
-
-    /** @return array<string, string> ustun => text | number | date */
-    public static function columnTypes(): array
-    {
-        $types = array_fill_keys(array_keys(self::LABELS), ExcelFilter::TEXT);
-
-        foreach (self::DATE_COLUMNS as $column) {
-            $types[$column] = ExcelFilter::DATE;
-        }
-        foreach (self::NUMERIC_COLUMNS as $column) {
-            $types[$column] = ExcelFilter::NUMBER;
-        }
-
-        return $types;
-    }
-
-    public static function excelFilter(): ExcelFilter
-    {
-        return new ExcelFilter(self::columnTypes(), self::DEFAULT_SORT);
-    }
-
-    /**
-     * Excel'dagidek filtrlar (qiymatlar ro'yxati, shartlar). Parametrlar formati — App\Support\ExcelFilter.
-     *
-     * @param  string|null  $except  shu ustun filtri hisobga olinmaydi (filtr variantlari uchun)
-     */
-    public function scopeFilter(Builder $query, array $params, ?string $except = null): Builder
-    {
-        return self::excelFilter()->apply($query, $params, $except);
-    }
-
-    public function scopeSorted(Builder $query, array $params): Builder
-    {
-        return self::excelFilter()->sort($query, $params);
-    }
 }

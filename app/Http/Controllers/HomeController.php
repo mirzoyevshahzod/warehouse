@@ -109,7 +109,12 @@ class HomeController extends Controller
 
     public function uzbekistanImport()
     {
-        return view('uzbekistan-import');
+        return view('uzbekistan-import', ['dataset' => 'import']);
+    }
+
+    public function uzbekistanExport()
+    {
+        return view('uzbekistan-import', ['dataset' => 'export']);
     }
 
 

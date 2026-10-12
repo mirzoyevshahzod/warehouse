@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>O'zbekiston Import</title>
+    <title>{{ $dataset === 'export' ? "O'zbekiston Eksport" : "O'zbekiston Import" }}</title>
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <style>
         /* ===== Faqat shu sahifa uchun ===== */
@@ -118,7 +118,7 @@
         .task:first-of-type { border-top: none; }
         .task .icon { font-size: 1.3rem; text-align: center; }
         .task .name { font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .task .meta { font-size: .8rem; color: #888; }
+        .task .meta { font-size: .8rem; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .task .error { font-size: .8rem; color: #c62828; white-space: normal; }
         .progress {
             height: 10px;
@@ -329,6 +329,15 @@
             </a>
         </li>
         <li>
+            <a href="{{ route('uzbekistanExport') }}" class="{{ request()->routeIs('uzbekistanExport') ? 'active' : '' }}">
+                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                O'zbekiston Eksport
+            </a>
+        </li>
+        <li>
             <a href="/dashboard">
                 <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -345,8 +354,13 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>O'zbekiston Import</h1>
-            <p>Bojxona deklaratsiyalari bo'yicha import ma'lumotlari</p>
+            @if ($dataset === 'export')
+                <h1>O'zbekiston Eksport</h1>
+                <p>O'zbekistondan eksport qilingan tovarlar bo'yicha bojxona ma'lumotlari</p>
+            @else
+                <h1>O'zbekiston Import</h1>
+                <p>Bojxona deklaratsiyalari bo'yicha import ma'lumotlari</p>
+            @endif
         </div>
 
         <!-- Action Buttons -->
@@ -429,15 +443,29 @@
         window.location.href = '/';
     }
 
-    const API = '/api/uzbekistan-import';
+    /** Sahifa qaysi ma'lumotlarni ko'rsatadi: import yoki eksport */
+    const DATASET = @json($dataset);
+    const DATASET_LABEL = { import: 'Import', export: 'Eksport' };
+
+    /** Ro'yxat, filtr va export — shu ma'lumot turiga oid; fayl yuklash va vazifalar — umumiy */
+    const API = `/api/uzbekistan-${DATASET}`;
+    const TASKS_API = '/api/uzbekistan-import';
+
+    // ustunlar tanlovi va boshqa sozlamalar har bir bo'lim uchun alohida saqlanadi
+    const STORAGE_PREFIX = DATASET === 'export' ? 'uzbekistanExport' : 'uzbekistanImport';
     const STORAGE = {
-        columns: 'uzbekistanImport.visibleColumns',
-        filterMode: 'uzbekistanImport.filterMode',
-        perPage: 'uzbekistanImport.perPage',
+        columns: `${STORAGE_PREFIX}.visibleColumns`,
+        filterMode: `${STORAGE_PREFIX}.filterMode`,
+        perPage: `${STORAGE_PREFIX}.perPage`,
     };
 
     /** Birinchi ochilganda ko'rinadigan ustunlar */
-    const DEFAULT_COLUMNS = [
+    const DEFAULT_COLUMNS = DATASET === 'export' ? [
+        'date', 'exporter_name', 'exporter_inn', 'importer_name',
+        'hs_code', 'product_description', 'quantity', 'net_weight_kg',
+        'invoice_amount_usd', 'customs_value_usd', 'destination_country', 'destination',
+        'transaction_method', 'transportation_method',
+    ] : [
         'registration_date', 'declaration_number', 'item_no',
         'importer_name', 'importer_inn', 'importer_region',
         'exporter_standard_name', 'exporter_country',
@@ -1250,7 +1278,8 @@
         }
 
         html += items.map(t => {
-            const isImport = t.type === 'import';
+            const isImport = t.type === 'import'; // fayl yuklash (aks holda — Excel'ga yuklab olish)
+            const dataset = t.dataset || 'import';
             const percent = t.status === 'completed' ? 100 : (t.progress ?? 0);
             const indeterminate = t.status === 'pending' || (t.status === 'processing' && t.progress === null);
             const barClass = t.status === 'completed' ? 'completed' : (t.status === 'failed' ? 'failed' : (indeterminate ? 'indeterminate' : ''));
@@ -1264,8 +1293,12 @@
                 <div class="task">
                     <div class="icon">${isImport ? '📥' : '📤'}</div>
                     <div style="min-width:0">
-                        <div class="name" title="${esc(t.original_name || '')}">${isImport ? 'Import' : 'Export'}: ${esc(t.original_name || '')}</div>
+                        <div class="name" title="${esc(t.original_name || '')}">${isImport ? 'Yuklash' : 'Yuklab olish'} · ${DATASET_LABEL[dataset]} ma'lumotlari</div>
+                        <div class="meta" title="${esc(t.original_name || '')}">${esc(t.original_name || '')}</div>
                         <div class="meta">${esc(time)}</div>
+                        ${isImport && dataset !== DATASET
+                            ? `<div class="meta"><a href="/uzbekistan-${dataset}">${DATASET_LABEL[dataset]} bo'limida ko'rish →</a></div>`
+                            : ''}
                     </div>
                     <div class="progress-wrap">
                         <div class="progress"><div class="progress-bar ${barClass}" style="width:${percent}%"></div></div>
@@ -1288,7 +1321,7 @@
 
     async function loadTasks() {
         try {
-            const result = await api(`${API}/tasks`);
+            const result = await api(`${TASKS_API}/tasks`);
             result.data.data.slice(0, 5).forEach(t => tasks.set(t.id, t));
             renderTasks();
             schedulePoll();
@@ -1308,13 +1341,14 @@
 
         await Promise.all(running.map(async t => {
             try {
-                const result = await api(`${API}/tasks/${t.id}`);
+                const result = await api(`${TASKS_API}/tasks/${t.id}`);
                 const updated = result.data;
                 tasks.set(updated.id, updated);
 
                 if (updated.status === 'completed' && t.status !== 'completed') {
                     if (updated.type === 'import') {
-                        loadData(); // yangi ma'lumotlar jadvalda ko'rinsin
+                        // yangi ma'lumotlar jadvalda ko'rinsin (shu bo'limga tegishli bo'lsa)
+                        if ((updated.dataset || 'import') === DATASET) loadData();
                     } else if (autoDownload.has(updated.id)) {
                         autoDownload.delete(updated.id);
                         downloadExport(updated);
@@ -1341,7 +1375,7 @@
 
         // fetch yuklash foizini bermaydi — XMLHttpRequest
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${API}/import`);
+        xhr.open('POST', `${TASKS_API}/import`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.setRequestHeader('Accept', 'application/json');
 
@@ -1411,7 +1445,7 @@
         if (!task) return;
 
         try {
-            const response = await fetch(`${API}/tasks/${task.id}/download`, {
+            const response = await fetch(`${TASKS_API}/tasks/${task.id}/download`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
 

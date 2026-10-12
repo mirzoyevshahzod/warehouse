@@ -5,31 +5,22 @@ namespace App\Imports;
 use App\Models\UzbekistanImport;
 use App\Support\AddressParser;
 use App\Support\ContactParser;
-use Carbon\Carbon;
-use OpenSpout\Reader\XLSX\Reader;
-use RuntimeException;
-use ZipArchive;
 
 /**
  * "Download_UZBEKISTAN_Import_Trade_Data_for_the_Period_from_YYYY_MM.xlsx" faylini yuklaydi.
  *
- * 1-qator — sarlavha, 2-qator — ustun nomlari, 3-qatordan ma'lumot.
  * Ustun nomlarida dublikat bor ("Address of the applicant" ikki marta),
  * shuning uchun ustunlar nomi bo'yicha emas, indeksi bo'yicha o'qiladi.
- *
- * Katta fayllar uchun OpenSpout bilan qatorma-qator (stream) o'qiladi —
- * fayl to'liq xotiraga yuklanmaydi. Queue job ichidan chaqiriladi.
  */
-class UzbekistanImportImport
+class UzbekistanImportImport extends TradeFileReader
 {
-    private const BATCH_SIZE = 500;
-
-    /** Ustun nomlari qatorini tanish va noto'g'ri fayl yuklanmasligi uchun */
-    private const EXPECTED_HEADERS = [
+    protected const EXPECTED_HEADERS = [
         4 => 'declaration number',
         20 => 'HS Code',
         71 => 'Customs Office',
     ];
+
+    protected const UNIQUE_BY = ['customs_code', 'registration_date', 'declaration_number', 'item_no'];
 
     /** Excel ustun indekslari (0 dan) */
     private const COL = [
@@ -111,138 +102,15 @@ class UzbekistanImportImport
         'usd_exchange_rate', 'fc_exchange_rate',
     ];
 
-    private const UNIQUE_BY = ['customs_code', 'registration_date', 'declaration_number', 'item_no'];
-
     /** @var array<string, array> manzil/kontakt parse natijalari keshi (bir xil qiymatlar ko'p takrorlanadi) */
     private array $cache = [];
 
-    /**
-     * Faylni o'qib bazaga yozadi.
-     *
-     * @param  callable(int):void|null  $onProgress  har bir batch'dan keyin yozilgan qatorlar soni bilan chaqiriladi
-     * @return int yozilgan (qo'shilgan yoki yangilangan) qatorlar soni
-     */
-    public function import(string $path, ?callable $onProgress = null): int
+    protected function modelClass(): string
     {
-        $reader = new Reader();
-        $reader->open($path);
-
-        $processed = 0;
-        $batch = [];
-        $headerFound = false;
-        $rowNumber = 0;
-
-        try {
-            foreach ($reader->getSheetIterator() as $sheet) {
-                foreach ($sheet->getRowIterator() as $row) {
-                    $values = $row->toArray();
-                    $rowNumber++;
-
-                    if (! $headerFound) {
-                        $headerFound = $this->isHeaderRow($values);
-                        if (! $headerFound && $rowNumber >= 10) {
-                            throw new RuntimeException(
-                                "Fayl formati noto'g'ri: ustun nomlari qatori topilmadi (kutilgan: \"declaration number\", \"HS Code\", \"Customs Office\")"
-                            );
-                        }
-                        continue;
-                    }
-
-                    $record = $this->mapRow($values);
-                    if ($record === null) {
-                        continue;
-                    }
-
-                    // bitta batch ichida takror bo'lsa — oxirgisi qoladi
-                    $batch[implode('|', array_map(fn ($k) => $record[$k], self::UNIQUE_BY))] = $record;
-
-                    if (count($batch) >= self::BATCH_SIZE) {
-                        $processed += $this->save($batch);
-                        $batch = [];
-                        $onProgress && $onProgress($processed);
-                    }
-                }
-
-                // faqat birinchi varaq
-                break;
-            }
-
-            if ($batch) {
-                $processed += $this->save($batch);
-                $onProgress && $onProgress($processed);
-            }
-        } finally {
-            $reader->close();
-        }
-
-        if (! $headerFound) {
-            throw new RuntimeException("Fayl formati noto'g'ri yoki fayl bo'sh");
-        }
-
-        return $processed;
+        return UzbekistanImport::class;
     }
 
-    /**
-     * Progress uchun ma'lumot qatorlari soni: varaq XML'idagi "<row " teglari sanaladi
-     * (kataklar parse qilinmaydi, shuning uchun tez). Sarlavha va ustun nomlari qatori ayiriladi.
-     */
-    public static function estimateRows(string $path): ?int
-    {
-        $zip = new ZipArchive();
-        if ($zip->open($path) !== true) {
-            return null;
-        }
-
-        $stream = $zip->getStream('xl/worksheets/sheet1.xml');
-        if (! $stream) {
-            $zip->close();
-
-            return null;
-        }
-
-        $count = 0;
-        $tail = '';
-        while (! feof($stream)) {
-            $chunk = $tail.fread($stream, 1048576);
-            $count += substr_count($chunk, '<row ');
-            // bo'lak chegarasida kesilgan tegni keyingi bo'lakda sanash uchun
-            $tail = substr($chunk, -4);
-            $count -= substr_count($tail, '<row ');
-        }
-
-        fclose($stream);
-        $zip->close();
-
-        return max(0, $count - 2);
-    }
-
-    private function isHeaderRow(array $values): bool
-    {
-        foreach (self::EXPECTED_HEADERS as $index => $name) {
-            if (strcasecmp(trim((string) ($values[$index] ?? '')), $name) !== 0) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private function save(array $records): int
-    {
-        $now = now();
-        $records = array_values(array_map(
-            fn ($r) => $r + ['created_at' => $now, 'updated_at' => $now],
-            $records
-        ));
-
-        $update = array_values(array_diff(array_keys($records[0]), [...self::UNIQUE_BY, 'created_at']));
-
-        UzbekistanImport::upsert($records, self::UNIQUE_BY, $update);
-
-        return count($records);
-    }
-
-    private function mapRow(array $row): ?array
+    protected function mapRow(array $row): ?array
     {
         $r = [];
         foreach (self::COL as $field => $index) {
@@ -303,54 +171,5 @@ class UzbekistanImportImport
     private function address(?string $value, bool $uzbek): array
     {
         return $this->cache['address'][(int) $uzbek][$value ?? ''] ??= AddressParser::parse($value, $uzbek);
-    }
-
-    private function text($value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format('Y-m-d');
-        }
-
-        $value = trim(preg_replace('/[ \t]+/u', ' ', (string) $value));
-
-        return $value === '' ? null : $value;
-    }
-
-    private function number($value): ?float
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        if (is_numeric($value)) {
-            return (float) $value;
-        }
-
-        $value = str_replace([' ', ','], ['', '.'], (string) $value);
-
-        return is_numeric($value) ? (float) $value : null;
-    }
-
-    private function date($value): ?string
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format('Y-m-d');
-        }
-
-        try {
-
-            // "2026-08-31T00:00:00" / "2026-08-31"
-            return Carbon::parse(trim($value))->format('Y-m-d');
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

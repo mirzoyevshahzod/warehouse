@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TradeDataset;
 use Illuminate\Database\Eloquent\Model;
 
 class UzbekistanImportTask extends Model
@@ -18,6 +19,7 @@ class UzbekistanImportTask extends Model
 
     protected $fillable = [
         'type',
+        'dataset',
         'status',
         'user_id',
         'original_name',
@@ -56,6 +58,12 @@ class UzbekistanImportTask extends Model
         }
 
         return (int) min(99, floor($this->processed_rows * 100 / $this->total_rows));
+    }
+
+    /** Vazifa qaysi ma'lumotlarga tegishli (import / eksport) */
+    public function tradeDataset(): TradeDataset
+    {
+        return TradeDataset::from($this->dataset ?: TradeDataset::Import->value);
     }
 
     public function markProcessing(): void

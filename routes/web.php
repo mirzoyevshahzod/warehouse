@@ -62,5 +62,6 @@ Route::get('/', [HomeController::class, 'login'])->name('login');
     Route::get('/drivers', [HomeController::class, 'drivers'])->name('drivers');
 
     Route::get('/uzbekistan-import', [HomeController::class, 'uzbekistanImport'])->name('uzbekistanImport');
+    Route::get('/uzbekistan-export', [HomeController::class, 'uzbekistanExport'])->name('uzbekistanExport');
 
     Route::get('/autos-export', [AutoController::class, 'export']);

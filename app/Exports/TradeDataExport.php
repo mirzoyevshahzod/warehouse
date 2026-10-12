@@ -2,8 +2,8 @@
 
 namespace App\Exports;
 
-use App\Models\UzbekistanImport;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
@@ -18,19 +18,22 @@ use PDO;
  * 1 048 576 qatordan oshmasligi uchun har 1 000 000 qatorda yangi varaq ochiladi.
  * Queue job ichidan chaqiriladi.
  */
-class UzbekistanImportExport
+class TradeDataExport
 {
     private const PROGRESS_EVERY = 2000;
     private const ROWS_PER_SHEET = 1000000;
     private const EXPORT_CONNECTION = 'uzbekistan_export_unbuffered';
 
-    public function __construct(private array $params = [])
+    /**
+     * @param  class-string<Model>  $model  HasExcelColumns trait'li model (UzbekistanImport, UzbekistanExport)
+     */
+    public function __construct(private string $model, private array $params = [])
     {
     }
 
     public function count(): int
     {
-        return UzbekistanImport::query()->filter($this->params)->count();
+        return $this->model::query()->filter($this->params)->count();
     }
 
     /**
@@ -39,9 +42,9 @@ class UzbekistanImportExport
      */
     public function store(string $path, ?callable $onProgress = null): int
     {
-        $columns = array_keys(UzbekistanImport::LABELS);
-        $numeric = array_flip(UzbekistanImport::NUMERIC_COLUMNS);
-        $header = Row::fromValues(array_values(UzbekistanImport::LABELS), (new Style())->setFontBold());
+        $columns = array_keys($this->model::LABELS);
+        $numeric = array_flip($this->model::NUMERIC_COLUMNS);
+        $header = Row::fromValues(array_values($this->model::LABELS), (new Style())->setFontBold());
 
         $writer = new Writer();
         $writer->openToFile($path);
@@ -92,12 +95,12 @@ class UzbekistanImportExport
         $default = config('database.default');
         $config = config("database.connections.$default");
 
-        $query = UzbekistanImport::query();
+        $query = $this->model::query();
 
         if (($config['driver'] ?? null) === 'mysql' || ($config['driver'] ?? null) === 'mariadb') {
             $config['options'] = array_replace($config['options'] ?? [], [PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => false]);
             config(["database.connections.".self::EXPORT_CONNECTION => $config]);
-            $query = UzbekistanImport::on(self::EXPORT_CONNECTION);
+            $query = $this->model::on(self::EXPORT_CONNECTION);
         }
 
         return $query->filter($this->params)->sorted($this->params);

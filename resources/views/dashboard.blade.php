@@ -546,8 +546,8 @@
             <!-- O'zbekiston import -->
             <div class="service-card">
                 <div class="service-icon">🇺🇿</div>
-                <h3>O'zbekiston Import</h3>
-                <p>O'zbekistonga import qilingan tovarlar bo'yicha bojxona deklaratsiyalari: importyor, eksportyor, tovar, summa va transport ma'lumotlari.</p>
+                <h3>O'zbekiston Import / Eksport</h3>
+                <p>O'zbekiston import va eksport qilgan tovarlar bo'yicha bojxona ma'lumotlari: importyor, eksportyor, tovar, summa va transport.</p>
                 <a href="{{ route('uzbekistanImport') }}" class="btn btn-primary">Boshlash</a>
             </div>
             

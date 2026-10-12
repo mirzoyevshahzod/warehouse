@@ -8,10 +8,15 @@ use App\Jobs\ImportUzbekistanFile;
 use App\Models\UzbekistanImport;
 use App\Models\UzbekistanImportTask;
 use App\Support\ExcelFilter;
+use App\Support\TradeDataset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
+/**
+ * O'zbekiston savdo ma'lumotlari: import (/api/uzbekistan-import/...) va eksport (/api/uzbekistan-export/...).
+ * Ikkala yo'nalish bir xil endpoint'larga ega; qaysi ma'lumot ekanligi route'dagi "dataset" dan olinadi.
+ */
 class UzbekistanImportController extends Controller
 {
     /**
@@ -35,7 +40,7 @@ class UzbekistanImportController extends Controller
     {
         $params = $this->filterParams($request);
 
-        $data = UzbekistanImport::query()
+        $data = $this->model($request)::query()
             ->filter($params)
             ->sorted($params)
             ->paginate(min((int) $request->input('per_page', 30), 200));
@@ -54,20 +59,22 @@ class UzbekistanImportController extends Controller
      *     @OA\Response(response=200, description="Ustunlar ro'yxati")
      * )
      */
-    public function columns()
+    public function columns(Request $request)
     {
-        $types = UzbekistanImport::columnTypes();
+        $model = $this->model($request);
+        $types = $model::columnTypes();
 
         return response()->json([
             'status' => true,
-            'columns' => collect(UzbekistanImport::LABELS)->map(fn ($label, $name) => [
+            'dataset' => $this->dataset($request)->value,
+            'columns' => collect($model::LABELS)->map(fn ($label, $name) => [
                 'name' => $name,
                 'label' => $label,
                 'type' => $types[$name],
             ])->values(),
-            'main_filters' => UzbekistanImport::MAIN_FILTERS,
+            'main_filters' => $model::MAIN_FILTERS,
             'operators' => ExcelFilter::OPERATORS,
-            'default_sort' => UzbekistanImport::DEFAULT_SORT,
+            'default_sort' => $model::DEFAULT_SORT,
         ]);
     }
 
@@ -86,13 +93,14 @@ class UzbekistanImportController extends Controller
     public function filterOptions(Request $request)
     {
         $request->validate([
-            'field' => ['required', Rule::in(array_keys(UzbekistanImport::LABELS))],
+            'field' => ['required', Rule::in(array_keys($this->model($request)::LABELS))],
             'q' => 'nullable|string|max:255',
             'limit' => 'nullable|integer|min:1|max:10000',
         ]);
 
-        $options = UzbekistanImport::excelFilter()->options(
-            UzbekistanImport::query(),
+        $model = $this->model($request);
+        $options = $model::excelFilter()->options(
+            $model::query(),
             $request->field,
             $this->filterParams($request),
             $request->q,
@@ -108,8 +116,8 @@ class UzbekistanImportController extends Controller
     /**
      * @OA\Post(
      *     path="/api/uzbekistan-import/import",
-     *     summary="Excel fayl yuklash (fonda, queue orqali)",
-     *     description="Fayl saqlanadi va queue'ga qo'yiladi. Holatini /api/uzbekistan-import/tasks/{id} orqali kuzating.",
+     *     summary="Excel fayl yuklash (fonda, queue orqali) — import yoki eksport fayli",
+     *     description="Fayl turi (import/eksport) ustun nomlariga qarab avtomatik aniqlanadi va tegishli jadvalga yoziladi. Holatini /api/uzbekistan-import/tasks/{id} orqali kuzating.",
      *     tags={"Uzbekistan Import"},
      *     @OA\RequestBody(
      *         required=true,
@@ -117,11 +125,12 @@ class UzbekistanImportController extends Controller
      *             mediaType="multipart/form-data",
      *             @OA\Schema(
      *                 required={"file"},
-     *                 @OA\Property(property="file", type="string", format="binary", description="Download_UZBEKISTAN_Import_Trade_Data_*.xlsx")
+     *                 @OA\Property(property="file", type="string", format="binary", description="Download_UZBEKISTAN_Import_Trade_Data_*.xlsx yoki Download_UZBEKISTAN_Export_Trade_Data_*.xlsx")
      *             )
      *         )
      *     ),
-     *     @OA\Response(response=202, description="Vazifa yaratildi")
+     *     @OA\Response(response=202, description="Vazifa yaratildi"),
+     *     @OA\Response(response=422, description="Fayl turi tanilmadi")
      * )
      */
     public function import(Request $request)
@@ -131,10 +140,21 @@ class UzbekistanImportController extends Controller
         ]);
 
         $file = $request->file('file');
+
+        // import yoki eksport fayli ekanligini ustun nomlaridan aniqlaymiz — qaysi sahifadan yuklanganidan qat'i nazar
+        $dataset = TradeDataset::detect($file->getRealPath());
+        if ($dataset === null) {
+            return response()->json([
+                'status' => false,
+                'message' => "Fayl turi tanilmadi: O'zbekiston import yoki eksport savdo ma'lumotlari fayli kutilgan",
+            ], 422);
+        }
+
         $path = $file->storeAs('uzbekistan/imports', uniqid('import_', true).'.xlsx', 'local');
 
         $task = UzbekistanImportTask::create([
             'type' => UzbekistanImportTask::TYPE_IMPORT,
+            'dataset' => $dataset->value,
             'status' => UzbekistanImportTask::STATUS_PENDING,
             'user_id' => $request->user()?->id,
             'original_name' => $file->getClientOriginalName(),
@@ -145,7 +165,7 @@ class UzbekistanImportController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Fayl qabul qilindi, fonda yuklanmoqda',
+            'message' => $dataset->label()." fayli qabul qilindi, fonda yuklanmoqda",
             'data' => $task
         ], 202);
     }
@@ -165,11 +185,12 @@ class UzbekistanImportController extends Controller
     {
         $task = UzbekistanImportTask::create([
             'type' => UzbekistanImportTask::TYPE_EXPORT,
+            'dataset' => $this->dataset($request)->value,
             'status' => UzbekistanImportTask::STATUS_PENDING,
             'user_id' => $request->user()?->id,
             'params' => $this->filterParams($request),
         ]);
-        $task->update(['original_name' => 'uzbekistan_import_'.$task->id.'_'.now()->format('Y_m_d_His').'.xlsx']);
+        $task->update(['original_name' => 'uzbekistan_'.$task->dataset.'_'.$task->id.'_'.now()->format('Y_m_d_His').'.xlsx']);
 
         ExportUzbekistanFile::dispatch($task);
 
@@ -193,10 +214,12 @@ class UzbekistanImportController extends Controller
     {
         $request->validate([
             'type' => ['nullable', Rule::in([UzbekistanImportTask::TYPE_IMPORT, UzbekistanImportTask::TYPE_EXPORT])],
+            'dataset' => ['nullable', Rule::enum(TradeDataset::class)],
         ]);
 
         $data = UzbekistanImportTask::query()
             ->when($request->type, fn ($q, $type) => $q->where('type', $type))
+            ->when($request->dataset, fn ($q, $dataset) => $q->where('dataset', $dataset))
             ->orderByDesc('id')
             ->paginate(20);
 
@@ -257,6 +280,18 @@ class UzbekistanImportController extends Controller
      */
     private function filterParams(Request $request): array
     {
-        return UzbekistanImport::excelFilter()->validate($request->only(['filters', 'sort']));
+        return $this->model($request)::excelFilter()->validate($request->only(['filters', 'sort']));
+    }
+
+    /** Route'dagi ma'lumot turi: /api/uzbekistan-import — import, /api/uzbekistan-export — eksport */
+    private function dataset(Request $request): TradeDataset
+    {
+        return TradeDataset::from($request->route('dataset') ?? TradeDataset::Import->value);
+    }
+
+    /** @return class-string<UzbekistanImport|\App\Models\UzbekistanExport> */
+    private function model(Request $request): string
+    {
+        return $this->dataset($request)->model();
     }
 }

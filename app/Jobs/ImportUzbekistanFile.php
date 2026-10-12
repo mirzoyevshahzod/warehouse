@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Imports\UzbekistanImportImport;
 use App\Models\UzbekistanImportTask;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,10 +33,12 @@ class ImportUzbekistanFile implements ShouldQueue
         $task = $this->task;
         $path = Storage::disk('local')->path($task->file_path);
 
-        $task->markProcessing();
-        $task->update(['total_rows' => UzbekistanImportImport::estimateRows($path)]);
+        $reader = $task->tradeDataset()->reader();
 
-        $rows = (new UzbekistanImportImport)->import($path, function (int $processed) use ($task) {
+        $task->markProcessing();
+        $task->update(['total_rows' => $reader::estimateRows($path)]);
+
+        $rows = $reader->import($path, function (int $processed) use ($task) {
             $task->update(['processed_rows' => $processed]);
         });
 

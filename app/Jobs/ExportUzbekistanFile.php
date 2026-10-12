@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Exports\UzbekistanImportExport;
+use App\Exports\TradeDataExport;
 use App\Models\UzbekistanImportTask;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +33,7 @@ class ExportUzbekistanFile implements ShouldQueue
     public function handle(): void
     {
         $task = $this->task;
-        $export = new UzbekistanImportExport($task->params ?? []);
+        $export = new TradeDataExport($task->tradeDataset()->model(), $task->params ?? []);
 
         $relative = 'uzbekistan/exports/'.$task->original_name;
         Storage::disk('local')->makeDirectory('uzbekistan/exports');

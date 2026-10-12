@@ -80,11 +80,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/import-eksport-qozoq', [ImportEksportQozoqContoller::class, 'index']);
     Route::get('/import-eksport-qozoq/export', [ImportEksportQozoqContoller::class, 'export']);
 
-    Route::get('/uzbekistan-import', [UzbekistanImportController::class, 'index']);
-    Route::get('/uzbekistan-import/columns', [UzbekistanImportController::class, 'columns']);
-    Route::get('/uzbekistan-import/filter-options', [UzbekistanImportController::class, 'filterOptions']);
+    // O'zbekiston savdo ma'lumotlari: import va eksport bir xil endpoint'lar bilan
+    foreach (['import', 'export'] as $dataset) {
+        Route::prefix("/uzbekistan-$dataset")->group(function () use ($dataset) {
+            Route::get('/', [UzbekistanImportController::class, 'index'])->defaults('dataset', $dataset);
+            Route::get('/columns', [UzbekistanImportController::class, 'columns'])->defaults('dataset', $dataset);
+            Route::get('/filter-options', [UzbekistanImportController::class, 'filterOptions'])->defaults('dataset', $dataset);
+            Route::post('/export', [UzbekistanImportController::class, 'export'])->defaults('dataset', $dataset);
+        });
+    }
+    // fayl yuklash (turi avtomatik aniqlanadi) va vazifalar — ikkala yo'nalish uchun umumiy
     Route::post('/uzbekistan-import/import', [UzbekistanImportController::class, 'import']);
-    Route::post('/uzbekistan-import/export', [UzbekistanImportController::class, 'export']);
     Route::get('/uzbekistan-import/tasks', [UzbekistanImportController::class, 'tasks']);
     Route::get('/uzbekistan-import/tasks/{task}', [UzbekistanImportController::class, 'task']);
     Route::get('/uzbekistan-import/tasks/{task}/download', [UzbekistanImportController::class, 'download']);
