@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\UzbekistanExport;
+use App\Models\UzbekistanExporterContact;
 
 /**
  * "Download_UZBEKISTAN_Export_Trade_Data_for_the_Period_from_YYYY_MM.xlsx" faylini yuklaydi.
@@ -11,6 +12,8 @@ use App\Models\UzbekistanExport;
  * qiymatlaridan hisoblanadi: sha1(barcha ustunlar) + shu qatorning fayl ichida nechanchi
  * marta uchrashi. Natijada bir faylni qayta yuklash dublikat yaratmaydi, faylning o'zida
  * bir xil bo'lgan qatorlar esa (alohida tovar pozitsiyalari) yo'qolmaydi.
+ *
+ * Faylda mas'ul xodim yo'q — firmaga (STIR) qo'lda kiritilgan xodim bo'lsa, u qo'yiladi.
  */
 class UzbekistanExportImport extends TradeFileReader
 {
@@ -63,6 +66,16 @@ class UzbekistanExportImport extends TradeFileReader
     /** @var array<string, int> qator hash'i => fayl ichida necha marta uchradi */
     private array $seen = [];
 
+    /** @var array<string, array> STIR => qo'lda kiritilgan xodim ustunlari */
+    private array $contacts;
+
+    public function __construct()
+    {
+        $this->contacts = UzbekistanExporterContact::all()
+            ->mapWithKeys(fn ($c) => [$c->exporter_inn => $c->toExportColumns()])
+            ->all();
+    }
+
     protected function modelClass(): string
     {
         return UzbekistanExport::class;
@@ -89,6 +102,9 @@ class UzbekistanExportImport extends TradeFileReader
         foreach (self::NUMBERS as $field) {
             $r[$field] = $this->number($row[self::COL[$field]] ?? null);
         }
+
+        // kalitga kirmaydi — xodim keyin o'zgarsa ham qator o'sha qator bo'lib qoladi
+        $r += $this->contacts[$r['exporter_inn']] ?? UzbekistanExporterContact::emptyExportColumns();
 
         return $r;
     }

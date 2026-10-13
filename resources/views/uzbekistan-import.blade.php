@@ -294,7 +294,76 @@
         .columns-popup .quick { display: flex; gap: 8px; margin-bottom: 8px; }
         .columns-popup .quick button { flex: 1; }
 
+        /* Xodim qo'shish (eksport) */
+        .btn-contact {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            color: white;
+        }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 35, 126, 0.35);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        .popup.modal {
+            position: relative;
+            width: 600px;
+            max-height: calc(100vh - 20px);
+        }
+        .modal .values-list { max-height: 260px; padding: 0; }
+        .firm-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f3f3;
+        }
+        .firm-item:last-child { border-bottom: none; }
+        .firm-item:hover { background: #f5f5f5; }
+        .firm-item.selected { background: #e3f2fd; box-shadow: inset 3px 0 0 #1976D2; }
+        .firm-item .firm-name { font-weight: 600; color: #1a237e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .firm-item .firm-meta { font-size: .8rem; color: #757575; }
+        .firm-item .firm-contact { font-size: .8rem; color: #2e7d32; font-weight: 600; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .form-field { display: flex; flex-direction: column; gap: 4px; }
+        .form-field.wide { grid-column: 1 / -1; }
+        .form-field label { font-size: .8rem; font-weight: 700; color: #616161; }
+        .form-field input {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: .9rem;
+            outline: none;
+        }
+        .form-field input:focus { border-color: #2196F3; box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1); }
+        .selected-firm {
+            background: #f5f8ff;
+            border: 1px solid #e3f2fd;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin: 10px 0;
+            font-size: .85rem;
+            color: #424242;
+        }
+        .form-error { color: #c62828; font-size: .85rem; margin-top: 8px; }
+        .toast {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            background: #2e7d32;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            z-index: 4000;
+            font-weight: 600;
+            animation: fadeIn .3s ease;
+        }
+
         @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
             .task { grid-template-columns: 28px 1fr; }
             .task .progress-wrap, .task .actions { grid-column: 1 / -1; }
         }
@@ -396,6 +465,17 @@
                 </svg>
                 Ustunlar
             </button>
+            @if ($dataset === 'export')
+                <button class="btn btn-contact" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="8.5" cy="7" r="4"></circle>
+                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                    Xodim qo'shish
+                </button>
+            @endif
         </div>
 
         <!-- Import / export jarayonlari -->
@@ -465,6 +545,7 @@
         'hs_code', 'product_description', 'quantity', 'net_weight_kg',
         'invoice_amount_usd', 'customs_value_usd', 'destination_country', 'destination',
         'transaction_method', 'transportation_method',
+        'responsible_person_name', 'responsible_person_position', 'responsible_person_phone',
     ] : [
         'registration_date', 'declaration_number', 'item_no',
         'importer_name', 'importer_inn', 'importer_region',
@@ -1477,6 +1558,178 @@
         }
     }
 
+    // ================= Xodim qo'shish (faqat eksport) =================
+
+    function toast(message) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = message;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    /**
+     * Eksportyor firmani (STIR bo'yicha takrorlanmas) tanlab, mas'ul xodimni kiritish.
+     * Saqlanganda xodim shu firmaning barcha qatorlariga yoziladi.
+     */
+    async function openContactModal() {
+        closePopup();
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.innerHTML = `
+            <div class="popup modal" role="dialog" aria-modal="true">
+                <div class="popup-title">Xodim qo'shish</div>
+                <div class="popup-body">
+                    <div class="p-section-title" style="margin-top:0">Eksportyor firma</div>
+                    <input class="p-search" type="search" placeholder="Firma nomi yoki STIR bo'yicha qidirish...">
+                    <div class="values-list firms"><div class="values-note">Yuklanmoqda...</div></div>
+
+                    <div class="selected-firm">Firmani tanlang</div>
+
+                    <div class="form-grid">
+                        <div class="form-field wide">
+                            <label for="contactName">Ism familiya *</label>
+                            <input id="contactName" type="text" maxlength="255" placeholder="Masalan: Karimov Aziz Botirovich">
+                        </div>
+                        <div class="form-field">
+                            <label for="contactPosition">Lavozim</label>
+                            <input id="contactPosition" type="text" maxlength="255" placeholder="Masalan: Direktor">
+                        </div>
+                        <div class="form-field">
+                            <label for="contactPhone">Telefon</label>
+                            <input id="contactPhone" type="tel" maxlength="30" placeholder="+998 90 123 45 67">
+                        </div>
+                    </div>
+                    <div class="form-error" hidden></div>
+                </div>
+                <div class="popup-footer">
+                    <button class="p-btn danger" data-action="delete" hidden>Xodimni olib tashlash</button>
+                    <div class="right" style="margin-left:auto">
+                        <button class="p-btn" data-action="cancel">Bekor qilish</button>
+                        <button class="p-btn primary" data-action="save">Saqlash</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(backdrop);
+
+        const modal = backdrop.querySelector('.modal');
+        const listEl = modal.querySelector('.firms');
+        const errorEl = modal.querySelector('.form-error');
+        const nameInput = modal.querySelector('#contactName');
+        const positionInput = modal.querySelector('#contactPosition');
+        const phoneInput = modal.querySelector('#contactPhone');
+        const deleteBtn = modal.querySelector('[data-action="delete"]');
+        const saveBtn = modal.querySelector('[data-action="save"]');
+
+        let firms = [];
+        let selected = null;
+        let search = '';
+
+        const close = () => {
+            backdrop.remove();
+            document.removeEventListener('keydown', onKey);
+        };
+        const onKey = e => { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+        backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+        modal.querySelector('[data-action="cancel"]').addEventListener('click', close);
+
+        function showError(message) {
+            errorEl.hidden = !message;
+            errorEl.textContent = message || '';
+        }
+
+        function renderFirms() {
+            const q = search.toLowerCase();
+            const visible = firms.filter(f => !q
+                || f.inn.includes(q)
+                || f.names.some(n => n.toLowerCase().includes(q)));
+
+            if (!visible.length) {
+                listEl.innerHTML = `<div class="values-note">Firma topilmadi</div>`;
+                return;
+            }
+
+            listEl.innerHTML = visible.map(f => `
+                <div class="firm-item ${selected?.inn === f.inn ? 'selected' : ''}" data-inn="${esc(f.inn)}">
+                    <div class="firm-name" title="${esc(f.names.join(' | '))}">${esc(f.name || '-')}</div>
+                    <div class="firm-meta">STIR: ${esc(f.inn)} · ${numberFormat.format(f.rows)} qator${f.names.length > 1 ? ` · ${f.names.length} xil nomda yozilgan` : ''}</div>
+                    ${f.contact ? `<div class="firm-contact">👤 ${esc(f.contact.full_name)}${f.contact.position ? ' — ' + esc(f.contact.position) : ''}${f.contact.phone ? ' · ' + esc(f.contact.phone) : ''}</div>` : ''}
+                </div>`).join('');
+
+            listEl.querySelectorAll('.firm-item').forEach(el => el.addEventListener('click', () => {
+                select(firms.find(f => f.inn === el.dataset.inn));
+            }));
+        }
+
+        function select(firm) {
+            selected = firm;
+            showError('');
+            modal.querySelector('.selected-firm').innerHTML = `
+                <strong>${esc(firm.name || '-')}</strong> (STIR: ${esc(firm.inn)})<br>
+                Xodim shu firmaning barcha <strong>${numberFormat.format(firm.rows)}</strong> ta qatoriga yoziladi`;
+            nameInput.value = firm.contact?.full_name || '';
+            positionInput.value = firm.contact?.position || '';
+            phoneInput.value = firm.contact?.phone || '';
+            deleteBtn.hidden = !firm.contact;
+            renderFirms();
+            nameInput.focus();
+        }
+
+        modal.querySelector('.p-search').addEventListener('input', e => {
+            search = e.target.value.trim();
+            renderFirms();
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            if (!selected) return showError('Avval firmani tanlang');
+            if (!nameInput.value.trim()) return showError('Xodimning ism familiyasini kiriting');
+
+            saveBtn.disabled = true;
+            try {
+                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        full_name: nameInput.value.trim(),
+                        position: positionInput.value.trim(),
+                        phone: phoneInput.value.trim(),
+                    }),
+                });
+                close();
+                toast(result.message);
+                loadData();
+            } catch (e) {
+                showError(e.message);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
+
+        deleteBtn.addEventListener('click', async () => {
+            if (!selected || !confirm(`${selected.name} firmasidan xodim olib tashlansinmi?`)) return;
+
+            try {
+                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, { method: 'DELETE' });
+                close();
+                toast(result.message);
+                loadData();
+            } catch (e) {
+                showError(e.message);
+            }
+        });
+
+        modal.querySelector('.p-search').focus();
+
+        try {
+            const result = await api(`${API}/exporters`);
+            firms = result.data;
+            renderFirms();
+        } catch (e) {
+            listEl.innerHTML = `<div class="values-note">${esc(e.message)}</div>`;
+        }
+    }
+
     // ================= Tugmalar =================
 
     document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
@@ -1490,6 +1743,10 @@
         state.filterMode = !state.filterMode;
         localStorage.setItem(STORAGE.filterMode, state.filterMode ? '1' : '0');
         renderAll();
+    });
+    document.getElementById('contactBtn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        openContactModal();
     });
     document.getElementById('columnsBtn').addEventListener('click', e => {
         e.stopPropagation();

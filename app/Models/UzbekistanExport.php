@@ -44,6 +44,10 @@ class UzbekistanExport extends Model
         'delivery_condition_code' => 'Delivery condition number code',
         'delivery_condition_name' => 'Delivery condition name',
         'transportation_method_code' => 'Transportation method code',
+        // qo'lda kiritiladi ("Xodim qo'shish") — App\Models\UzbekistanExporterContact
+        'responsible_person_name' => 'Responsible person',
+        'responsible_person_position' => 'Responsible person position',
+        'responsible_person_phone' => 'Responsible person phone',
     ];
 
     public const DATE_COLUMNS = ['date'];

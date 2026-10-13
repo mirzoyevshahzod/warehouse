@@ -1,0 +1,172 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Jobs\ImportUzbekistanFile;
+use App\Models\User;
+use App\Models\UzbekistanExport;
+use App\Models\UzbekistanExporterContact;
+use App\Models\UzbekistanImportTask;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Tests\TestCase;
+
+/** Eksportyor firmalarga mas'ul xodimni qo'lda biriktirish */
+class UzbekistanExporterContactTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('local');
+        Sanctum::actingAs(User::factory()->create());
+
+        // 305048781 — bitta firma uch xil nom bilan (5 qator); 306803919 — boshqa firma (2 qator)
+        $this->runImport([
+            $this->row('305048781', 'JSC UZKIMYOIMPEKS', '1'),
+            $this->row('305048781', 'JSC UZKIMYOIMPEKS', '2'),
+            $this->row('305048781', 'JSC UZKIMYOIMPEKS', '3'),
+            $this->row('305048781', 'LLC UZKIMYOIMPEKS ЭЛ ПОЧТА', '4'),
+            $this->row('305048781', 'UZKIMYOIMPEKS', '5'),
+            $this->row('306803919', 'LLC INTERNET TECHNOLOGY', '6'),
+            $this->row('306803919', 'LLC INTERNET TECHNOLOGY', '7'),
+        ]);
+    }
+
+    public function test_exporters_are_unique_by_inn_with_most_common_name(): void
+    {
+        $firms = $this->getJson('/api/uzbekistan-export/exporters')->assertOk()->json('data');
+
+        // alifbo tartibida: "JSC UZKIMYOIMPEKS" < "LLC INTERNET TECHNOLOGY"
+        $this->assertCount(2, $firms);
+        $this->assertSame('305048781', $firms[0]['inn']);
+        $this->assertSame('JSC UZKIMYOIMPEKS', $firms[0]['name']);
+        $this->assertSame(5, $firms[0]['rows']);
+        $this->assertCount(3, $firms[0]['names']);
+        $this->assertSame(['inn' => '306803919', 'name' => 'LLC INTERNET TECHNOLOGY', 'rows' => 2, 'contact' => null],
+            array_intersect_key($firms[1], array_flip(['inn', 'name', 'rows', 'contact'])));
+
+        // qidiruv nomning istalgan yozilishi va STIR bo'yicha
+        $this->assertCount(1, $this->getJson('/api/uzbekistan-export/exporters?q=почта')->json('data'));
+        $this->assertCount(1, $this->getJson('/api/uzbekistan-export/exporters?q=3068')->json('data'));
+    }
+
+    public function test_saving_contact_writes_it_to_all_rows_of_the_firm(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/contact', [
+            'full_name' => 'Karimov Aziz',
+            'position' => 'Direktor',
+            'phone' => '+998 90 123-45-67',
+        ])->assertOk()->assertJsonPath('updated_rows', 5);
+
+        // barcha nom yozilishidagi 5 qator yangilandi, boshqa firma tegilmadi
+        $this->assertSame(5, UzbekistanExport::where('responsible_person_name', 'Karimov Aziz')->count());
+        $this->assertSame(2, UzbekistanExport::whereNull('responsible_person_name')->count());
+
+        $row = UzbekistanExport::where('exporter_inn', '305048781')->first();
+        $this->assertSame('Direktor', $row->responsible_person_position);
+        $this->assertSame('+998901234567', $row->responsible_person_phone); // normallashtirilgan
+
+        $this->assertSame('Karimov Aziz', $this->getJson('/api/uzbekistan-export/exporters?q=305048781')->json('data.0.contact.full_name'));
+
+        // jadvalda filtr bilan topiladi
+        $this->getJson('/api/uzbekistan-export?'.http_build_query(['filters' => ['responsible_person_name' => ['values' => ['Karimov Aziz']]]]))
+            ->assertJsonPath('data.total', 5);
+
+        // tahrirlash — qayta saqlash; chet el raqami o'zgarishsiz qoladi
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/contact', [
+            'full_name' => 'Karimov Aziz',
+            'position' => 'Bosh direktor',
+            'phone' => '+7 999 123 45 67',
+        ])->assertOk();
+        $this->assertSame(1, UzbekistanExporterContact::count());
+        $this->assertSame(5, UzbekistanExport::where('responsible_person_position', 'Bosh direktor')->where('responsible_person_phone', '+7 999 123 45 67')->count());
+    }
+
+    public function test_contact_is_applied_to_newly_uploaded_files(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/306803919/contact', ['full_name' => 'Valiyev Bobur'])->assertOk();
+
+        $this->runImport([
+            $this->row('306803919', 'LLC INTERNET TECHNOLOGY', '8'),
+            $this->row('309590756', 'LLC DICLE TEKS', '9'),
+        ]);
+
+        $this->assertSame('Valiyev Bobur', UzbekistanExport::where('hs_code', '8')->value('responsible_person_name'));
+        $this->assertNull(UzbekistanExport::where('hs_code', '9')->value('responsible_person_name'));
+        $this->assertSame(3, UzbekistanExport::where('responsible_person_name', 'Valiyev Bobur')->count());
+    }
+
+    public function test_deleting_contact_clears_rows(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/306803919/contact', ['full_name' => 'Valiyev Bobur', 'phone' => '901234567'])->assertOk();
+
+        $this->deleteJson('/api/uzbekistan-export/exporters/306803919/contact')
+            ->assertOk()
+            ->assertJsonPath('updated_rows', 2);
+
+        $this->assertSame(0, UzbekistanExporterContact::count());
+        $this->assertSame(7, UzbekistanExport::whereNull('responsible_person_name')->whereNull('responsible_person_phone')->count());
+
+        // qayta yuklashda ham qaytib kelmaydi
+        $this->runImport([$this->row('306803919', 'LLC INTERNET TECHNOLOGY', '6')]);
+        $this->assertSame(7, UzbekistanExport::whereNull('responsible_person_name')->count());
+    }
+
+    public function test_validation(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/contact', ['position' => 'Direktor'])
+            ->assertStatus(422)->assertJsonValidationErrors('full_name');
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/contact', ['full_name' => 'A', 'phone' => 'abc'])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
+        $this->putJson('/api/uzbekistan-export/exporters/999999999/contact', ['full_name' => 'A'])
+            ->assertNotFound();
+
+        $this->assertSame(0, UzbekistanExporterContact::count());
+    }
+
+    private function runImport(array $rows): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'uzbexp').'.xlsx';
+        $headers = array_fill(0, 29, 'col');
+        $headers[3] = 'Exporter ID';
+        $headers[4] = 'HS code';
+        $headers[13] = 'Destination country';
+
+        $writer = new Writer();
+        $writer->openToFile($path);
+        $writer->addRow(Row::fromValues(['[UZBEKISTAN] country (export) trade country download data']));
+        $writer->addRow(Row::fromValues($headers));
+        foreach ($rows as $row) {
+            $writer->addRow(Row::fromValues($row));
+        }
+        $writer->close();
+
+        $relative = 'uzbekistan/imports/'.uniqid().'.xlsx';
+        Storage::disk('local')->put($relative, file_get_contents($path));
+        $task = UzbekistanImportTask::create(['type' => 'import', 'dataset' => 'export', 'file_path' => $relative]);
+
+        (new ImportUzbekistanFile($task))->handle();
+        $this->assertSame('completed', $task->fresh()->status);
+    }
+
+    private function row(string $inn, string $name, string $hs): array
+    {
+        $row = array_fill(0, 29, '');
+        $row[0] = '2026-08-31';
+        $row[1] = 'BUYER LLC';
+        $row[2] = $name;
+        $row[3] = $inn;
+        $row[4] = $hs;
+        $row[5] = 'PRODUCT';
+        $row[8] = 10;
+        $row[13] = 'RUSSIA';
+
+        return $row;
+    }
+}

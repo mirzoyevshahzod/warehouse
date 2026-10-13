@@ -16,6 +16,7 @@ use App\Http\Controllers\API\CheckedQozoqController;
 use App\Http\Controllers\API\ImportQozoqController;
 use App\Http\Controllers\API\ImportEksportQozoqContoller;
 use App\Http\Controllers\API\UzbekistanImportController;
+use App\Http\Controllers\API\UzbekistanExporterContactController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\TestController;
 use App\Http\Controllers\API\DriverController;
@@ -94,6 +95,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/uzbekistan-import/tasks', [UzbekistanImportController::class, 'tasks']);
     Route::get('/uzbekistan-import/tasks/{task}', [UzbekistanImportController::class, 'task']);
     Route::get('/uzbekistan-import/tasks/{task}/download', [UzbekistanImportController::class, 'download']);
+
+    // eksportyor firmalarga xodim biriktirish
+    Route::get('/uzbekistan-export/exporters', [UzbekistanExporterContactController::class, 'index']);
+    Route::put('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'save'])->where('inn', '[0-9A-Za-z]+');
+    Route::delete('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'destroy'])->where('inn', '[0-9A-Za-z]+');
 
     Route::post('/checked-qozoq/import', [CheckedQozoqController::class, 'import']);
     Route::get('/checked-qozoq', [CheckedQozoqController::class, 'index']);
