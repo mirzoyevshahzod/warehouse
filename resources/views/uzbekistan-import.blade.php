@@ -315,6 +315,31 @@
             max-height: calc(100vh - 20px);
         }
         .modal .values-list { max-height: 260px; padding: 0; }
+        .firm-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+        .firm-tab {
+            flex: 1;
+            border: 1px solid #ddd;
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: .85rem;
+            font-weight: 600;
+            color: #616161;
+            cursor: pointer;
+        }
+        .firm-tab .count {
+            display: inline-block;
+            min-width: 22px;
+            margin-left: 4px;
+            padding: 0 6px;
+            border-radius: 10px;
+            background: #e0e0e0;
+            font-size: .75rem;
+        }
+        .firm-tab.active { border-color: #1976D2; background: #e3f2fd; color: #1a237e; }
+        .firm-tab.active .count { background: #1976D2; color: white; }
+        .firm-tab[data-tab="with"].active { border-color: #2e7d32; background: #e8f5e9; color: #1b5e20; }
+        .firm-tab[data-tab="with"].active .count { background: #2e7d32; }
         .firm-item {
             padding: 8px 12px;
             cursor: pointer;
@@ -1582,6 +1607,10 @@
                 <div class="popup-title">Xodim qo'shish</div>
                 <div class="popup-body">
                     <div class="p-section-title" style="margin-top:0">Eksportyor firma</div>
+                    <div class="firm-tabs">
+                        <button type="button" class="firm-tab active" data-tab="without">Xodim kiritilmagan <span class="count">0</span></button>
+                        <button type="button" class="firm-tab" data-tab="with">Xodim kiritilgan <span class="count">0</span></button>
+                    </div>
                     <input class="p-search" type="search" placeholder="Firma nomi yoki STIR bo'yicha qidirish...">
                     <div class="values-list firms"><div class="values-note">Yuklanmoqda...</div></div>
 
@@ -1625,6 +1654,8 @@
         let firms = [];
         let selected = null;
         let search = '';
+        // xodim kiritilgan va kiritilmagan firmalar alohida ro'yxatda
+        let tab = 'without';
 
         const close = () => {
             backdrop.remove();
@@ -1642,12 +1673,23 @@
 
         function renderFirms() {
             const q = search.toLowerCase();
-            const visible = firms.filter(f => !q
+            // firmalar serverdan qatorlar soni bo'yicha kamayish tartibida keladi
+            const found = firms.filter(f => !q
                 || f.inn.includes(q)
                 || f.names.some(n => n.toLowerCase().includes(q)));
+            const groups = {
+                without: found.filter(f => !f.contact),
+                with: found.filter(f => f.contact),
+            };
+            modal.querySelectorAll('.firm-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+                btn.querySelector('.count').textContent = numberFormat.format(groups[btn.dataset.tab].length);
+            });
 
+            const visible = groups[tab];
             if (!visible.length) {
-                listEl.innerHTML = `<div class="values-note">Firma topilmadi</div>`;
+                listEl.innerHTML = `<div class="values-note">${q ? 'Firma topilmadi'
+                    : tab === 'with' ? 'Hali hech bir firmaga xodim kiritilmagan' : 'Barcha firmalarga xodim kiritilgan'}</div>`;
                 return;
             }
 
@@ -1676,6 +1718,12 @@
             renderFirms();
             nameInput.focus();
         }
+
+        modal.querySelectorAll('.firm-tab').forEach(btn => btn.addEventListener('click', () => {
+            tab = btn.dataset.tab;
+            listEl.scrollTop = 0;
+            renderFirms();
+        }));
 
         modal.querySelector('.p-search').addEventListener('input', e => {
             search = e.target.value.trim();

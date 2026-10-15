@@ -21,7 +21,7 @@ class UzbekistanExporterContactController extends Controller
      *     summary="Eksportyor firmalar (STIR bo'yicha takrorlanmas) va biriktirilgan xodim",
      *     tags={"Uzbekistan Export"},
      *     @OA\Parameter(name="q", in="query", description="Firma nomi yoki STIR bo'yicha qidirish", required=false, @OA\Schema(type="string")),
-     *     @OA\Response(response=200, description="[{inn, name, names_count, rows, contact}]")
+     *     @OA\Response(response=200, description="[{inn, name, names, rows, contact}] — qatorlar soni bo'yicha kamayish tartibida")
      * )
      */
     public function index(Request $request)
@@ -58,9 +58,13 @@ class UzbekistanExporterContactController extends Controller
                 || $f['names']->contains(fn ($n) => str_contains(mb_strtolower($n), $q)));
         }
 
+        // eng ko'p qatorli firmalar birinchi; teng bo'lsa — nom bo'yicha
+        $firms = $firms->sort(fn ($a, $b) => [$b['rows'], mb_strtolower((string) $a['name'])]
+            <=> [$a['rows'], mb_strtolower((string) $b['name'])]);
+
         return response()->json([
             'status' => true,
-            'data' => $firms->sortBy(fn ($f) => mb_strtolower((string) $f['name']))->values(),
+            'data' => $firms->values(),
         ]);
     }
 

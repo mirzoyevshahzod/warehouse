@@ -42,7 +42,7 @@ class UzbekistanExporterContactTest extends TestCase
     {
         $firms = $this->getJson('/api/uzbekistan-export/exporters')->assertOk()->json('data');
 
-        // alifbo tartibida: "JSC UZKIMYOIMPEKS" < "LLC INTERNET TECHNOLOGY"
+        // qatorlar soni bo'yicha kamayish tartibida: 5 > 2
         $this->assertCount(2, $firms);
         $this->assertSame('305048781', $firms[0]['inn']);
         $this->assertSame('JSC UZKIMYOIMPEKS', $firms[0]['name']);
@@ -54,6 +54,21 @@ class UzbekistanExporterContactTest extends TestCase
         // qidiruv nomning istalgan yozilishi va STIR bo'yicha
         $this->assertCount(1, $this->getJson('/api/uzbekistan-export/exporters?q=почта')->json('data'));
         $this->assertCount(1, $this->getJson('/api/uzbekistan-export/exporters?q=3068')->json('data'));
+    }
+
+    public function test_exporters_are_sorted_by_rows_desc_then_name(): void
+    {
+        // alifboda birinchi bo'lsa ham, qatori kam firma oxirida turadi
+        $this->runImport([
+            $this->row('300000001', 'AAA FIRST LLC', '8'),
+            $this->row('300000002', 'ZZZ LAST LLC', '9'),
+            $this->row('300000002', 'ZZZ LAST LLC', '10'),
+        ]);
+
+        $inns = array_column($this->getJson('/api/uzbekistan-export/exporters')->json('data'), 'inn');
+
+        // 5 qator, keyin 2 ta qatorlilar (LLC INTERNET < ZZZ), oxirida 1 qatorli
+        $this->assertSame(['305048781', '306803919', '300000002', '300000001'], $inns);
     }
 
     public function test_saving_contact_writes_it_to_all_rows_of_the_firm(): void
