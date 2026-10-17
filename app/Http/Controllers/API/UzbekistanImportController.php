@@ -141,9 +141,52 @@ class UzbekistanImportController extends Controller
             (int) $request->input('per_page', 20),
         );
 
+        // firma ikkinchi yo'nalishda ham bormi (import qilgan firma eksport ham qilganmi va aksincha)
+        $other = new FirmDirectory($this->dataset($request)->other()->model());
+        $inOther = $other->scope()
+            ->whereIn($other->innColumn(), $firms['data']->pluck('inn'))
+            ->distinct()
+            ->pluck($other->innColumn())
+            ->map(fn ($inn) => (string) $inn)
+            ->flip();
+        $firms['data'] = $firms['data']->map(fn ($firm) => $firm + ['in_other' => $inOther->has($firm['inn'])]);
+
         return response()->json([
             'status' => true,
             'data' => $firms,
+        ]);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/uzbekistan-firms/summary",
+     *     summary="Import va eksportdagi takrorlanmas firmalar soni (filtrsiz)",
+     *     tags={"Uzbekistan Import"},
+     *     @OA\Response(response=200, description="{import: {total, with_contacts, rows}, export: {...}, unique_total — ikkalasida jami takrorlanmas, both — ikkalasida ham bor}")
+     * )
+     */
+    public function firmsSummary()
+    {
+        $import = new FirmDirectory(TradeDataset::Import->model());
+        $export = new FirmDirectory(TradeDataset::Export->model());
+
+        $importSummary = $import->summary();
+        $exportSummary = $export->summary();
+
+        // ham import, ham eksport qilgan firmalar (STIR bo'yicha)
+        $both = $import->scope()
+            ->whereIn($import->innColumn(), $export->scope()->select($export->innColumn()))
+            ->distinct()
+            ->count($import->innColumn());
+
+        return response()->json([
+            'status' => true,
+            'data' => [
+                'import' => $importSummary,
+                'export' => $exportSummary,
+                'unique_total' => $importSummary['total'] + $exportSummary['total'] - $both,
+                'both' => $both,
+            ],
         ]);
     }
 

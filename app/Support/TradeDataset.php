@@ -44,6 +44,12 @@ enum TradeDataset: string
         return new $class;
     }
 
+    /** Ikkinchi yo'nalish: import uchun — eksport, eksport uchun — import */
+    public function other(): self
+    {
+        return $this === self::Import ? self::Export : self::Import;
+    }
+
     public function label(): string
     {
         return match ($this) {

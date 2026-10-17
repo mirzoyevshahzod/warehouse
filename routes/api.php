@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
     }
     // fayl yuklash (turi avtomatik aniqlanadi) va vazifalar — ikkala yo'nalish uchun umumiy
     Route::post('/uzbekistan-import/import', [UzbekistanImportController::class, 'import']);
+    Route::get('/uzbekistan-firms/summary', [UzbekistanImportController::class, 'firmsSummary']);
     Route::get('/uzbekistan-import/tasks', [UzbekistanImportController::class, 'tasks']);
     Route::get('/uzbekistan-import/tasks/{task}', [UzbekistanImportController::class, 'task']);
     Route::get('/uzbekistan-import/tasks/{task}/download', [UzbekistanImportController::class, 'download']);

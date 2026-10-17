@@ -6,6 +6,7 @@ use App\Jobs\ImportUzbekistanFile;
 use App\Models\User;
 use App\Models\UzbekistanExport;
 use App\Models\UzbekistanExporterContact;
+use App\Models\UzbekistanImport;
 use App\Models\UzbekistanImportTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -85,6 +86,28 @@ class UzbekistanExporterContactTest extends TestCase
         $this->assertNull($result['data'][0]['address']);
         $this->assertSame([['full_name' => 'Valiyev Bobur', 'position' => 'Direktor', 'phone' => null, 'rows' => 2]], $result['data'][1]['contacts']);
         $this->assertSame([['value' => 'RUSSIA', 'rows' => 2]], $result['data'][1]['countries']);
+    }
+
+    public function test_firms_summary_counts_import_and_export_firms(): void
+    {
+        // 305048781 ham import, ham eksport qilgan; 200000001 — faqat import
+        UzbekistanImport::create(['importer_inn' => '305048781', 'importer_name' => 'UZKIMYOIMPEKS', 'item_no' => '1']);
+        UzbekistanImport::create(['importer_inn' => '305048781', 'importer_name' => 'UZKIMYOIMPEKS', 'item_no' => '2']);
+        UzbekistanImport::create(['importer_inn' => '200000001', 'importer_name' => 'ONLY IMPORT LLC', 'item_no' => '3']);
+        UzbekistanImport::create(['importer_inn' => null, 'importer_name' => 'NO INN', 'item_no' => '4']);
+
+        $this->getJson('/api/uzbekistan-firms/summary')->assertOk()->assertJson(['data' => [
+            'import' => ['total' => 2, 'rows' => 3],
+            'export' => ['total' => 2, 'rows' => 7],
+            'unique_total' => 3,
+            'both' => 1,
+        ]]);
+
+        $export = $this->getJson('/api/uzbekistan-export/firms')->json('data.data');
+        $this->assertSame([true, false], array_column($export, 'in_other'));
+
+        $import = $this->getJson('/api/uzbekistan-import/firms')->json('data.data');
+        $this->assertSame(['305048781' => true, '200000001' => false], array_column($import, 'in_other', 'inn'));
     }
 
     public function test_saving_contact_writes_it_to_all_rows_of_the_firm(): void

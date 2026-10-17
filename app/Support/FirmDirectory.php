@@ -34,6 +34,29 @@ class FirmDirectory
         $this->firm = $model::FIRM;
     }
 
+    /** Firma STIR ustuni nomi */
+    public function innColumn(): string
+    {
+        return $this->firm['inn'];
+    }
+
+    /**
+     * Takrorlanmas firmalar soni, ulardan xodimi borlari va qatorlar soni
+     *
+     * @return array{total: int, with_contacts: int, rows: int}
+     */
+    public function summary(array $params = [], ?string $search = null): array
+    {
+        $inn = $this->firm['inn'];
+        $base = $this->scope($params)->where(fn (Builder $w) => $this->search($w, $search));
+
+        return [
+            'total' => (clone $base)->distinct()->count($inn),
+            'with_contacts' => (clone $base)->whereNotNull($this->firm['contacts'][0])->distinct()->count($inn),
+            'rows' => (clone $base)->count(),
+        ];
+    }
+
     /**
      * @return array{total: int, with_contacts: int, rows: int, current_page: int, last_page: int, per_page: int, data: Collection}
      */
@@ -41,10 +64,7 @@ class FirmDirectory
     {
         $inn = $this->firm['inn'];
         $base = $this->scope($params)->where(fn (Builder $w) => $this->search($w, $search));
-
-        $total = (clone $base)->distinct()->count($inn);
-        $withContacts = (clone $base)->whereNotNull($this->firm['contacts'][0])->distinct()->count($inn);
-        $rows = (clone $base)->count();
+        $summary = $this->summary($params, $search);
 
         // eng ko'p qatorli firmalar birinchi
         $firms = (clone $base)
@@ -57,12 +77,9 @@ class FirmDirectory
             ->forPage($page, $perPage)
             ->get();
 
-        return [
-            'total' => $total,
-            'with_contacts' => $withContacts,
-            'rows' => $rows,
+        return $summary + [
             'current_page' => $page,
-            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'last_page' => max(1, (int) ceil($summary['total'] / $perPage)),
             'per_page' => $perPage,
             'data' => $this->details($firms, $params),
         ];
@@ -136,7 +153,7 @@ class FirmDirectory
     }
 
     /** Jadval filtrlari qo'llangan, STIR'i bor qatorlar */
-    private function scope(array $params): Builder
+    public function scope(array $params = []): Builder
     {
         $inn = $this->firm['inn'];
 

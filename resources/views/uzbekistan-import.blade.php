@@ -322,6 +322,7 @@
             color: white;
         }
         .popup.modal.firms-modal { width: 900px; height: min(780px, calc(100vh - 20px)); }
+        .btn-firms .badge { background: rgba(255, 255, 255, 0.25); }
         .firms-modal .popup-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .firms-modal .popup-title .close {
             border: none;
@@ -342,6 +343,30 @@
         }
         .firms-summary .stat strong { display: block; font-size: 1.05rem; color: #1a237e; }
         .firms-note { font-size: .8rem; color: #e65100; margin-bottom: 8px; }
+        .firms-totals { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .firms-totals .stat {
+            flex: 1 1 140px;
+            background: #e0f2f1;
+            border: 1px solid #b2dfdb;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: .8rem;
+            color: #00695c;
+        }
+        .firms-totals .stat strong { display: block; font-size: 1.25rem; color: #004d40; }
+        .firms-totals .stat.main { background: #00796B; border-color: #00796B; color: #e0f2f1; }
+        .firms-totals .stat.main strong { color: white; }
+        .firms-modal .firm-tabs { margin-bottom: 10px; }
+        .also-chip {
+            display: inline-block;
+            background: #fff3e0;
+            color: #e65100;
+            border-radius: 10px;
+            padding: 0 8px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .also-chip:hover { background: #ffe0b2; }
         .firm-card {
             border: 1px solid #eee;
             border-radius: 8px;
@@ -365,9 +390,10 @@
             justify-content: center;
         }
         .firm-card .title { font-weight: 700; color: #1a237e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .firm-card .side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; grid-column: 3; grid-row: 1 / span 3; }
         .firm-card .rows { font-weight: 700; color: #00796B; white-space: nowrap; text-align: right; }
-        .firm-card .sub { font-size: .8rem; color: #757575; grid-column: 2 / -1; }
-        .firm-card .info { grid-column: 2 / -1; font-size: .84rem; color: #424242; display: flex; flex-direction: column; gap: 3px; }
+        .firm-card .sub { font-size: .8rem; color: #757575; grid-column: 2; }
+        .firm-card .info { grid-column: 2; font-size: .84rem; color: #424242; display: flex; flex-direction: column; gap: 3px; }
         .firm-card .line { display: flex; gap: 6px; align-items: baseline; }
         .firm-card .line > span:first-child { flex: none; width: 18px; text-align: center; }
         .firm-card .contact strong { color: #2e7d32; }
@@ -479,7 +505,9 @@
             .form-grid { grid-template-columns: 1fr; }
             .firm-card { grid-template-columns: minmax(0, 1fr) auto; }
             .firm-card .rank { display: none; }
-            .firm-card .sub, .firm-card .info { grid-column: 1 / -1; }
+            .firm-card .side { grid-column: 2; grid-row: 1 / span 2; }
+            .firm-card .sub { grid-column: 1; }
+            .firm-card .info { grid-column: 1 / -1; }
             .task { grid-template-columns: 28px 1fr; }
             .task .progress-wrap, .task .actions { grid-column: 1 / -1; }
         }
@@ -588,6 +616,7 @@
                     <path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"></path>
                 </svg>
                 Firmalar
+                <span class="badge" id="firmsCount" hidden></span>
             </button>
             @if ($dataset === 'export')
                 <button class="btn btn-contact" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
@@ -1713,26 +1742,48 @@
 
     // ================= Firmalar =================
 
-    const FIRM_LABELS = DATASET === 'export'
-        ? { title: 'Eksportyor firmalar', country: 'Boradigan davlat' }
-        : { title: 'Importyor firmalar', country: 'Kelib chiqish davlati' };
+    const FIRM_LABELS = {
+        import: { tab: 'Import firmalar', country: 'Kelib chiqish davlati', innColumn: 'importer_inn', noContact: "Xodim ma'lumoti yo'q", alsoIn: 'Eksport ham qilgan' },
+        export: { tab: 'Eksport firmalar', country: 'Boradigan davlat', innColumn: 'exporter_inn', noContact: 'Xodim kiritilmagan', alsoIn: 'Import ham qilgan' },
+    };
 
-    /** Takrorlanmas firmalar (STIR bo'yicha) — qatorlar soni bo'yicha kamayish tartibida, jadval filtrlari bilan */
+    /** Import va eksportdagi takrorlanmas firmalar soni (filtrsiz) */
+    async function loadFirmsSummary() {
+        const result = await api('/api/uzbekistan-firms/summary');
+        const badge = document.getElementById('firmsCount');
+        badge.textContent = numberFormat.format(result.data[DATASET].total);
+        badge.hidden = false;
+        return result.data;
+    }
+
+    /** Boshqa bo'limga o'tib, jadvalni firma bo'yicha filtrlash (?inn=...) */
+    function firmPageUrl(dataset, inn) {
+        return `/uzbekistan-${dataset}?inn=${encodeURIComponent(inn)}`;
+    }
+
+    /**
+     * Takrorlanmas firmalar (STIR bo'yicha) — qatorlar soni bo'yicha kamayish tartibida.
+     * Import va eksport firmalari alohida tablarda; joriy bo'limda jadval filtrlari hisobga olinadi.
+     */
     function openFirmsModal() {
         closePopup();
 
-        const filtered = Object.keys(state.filters).length > 0;
         const backdrop = document.createElement('div');
         backdrop.className = 'modal-backdrop';
         backdrop.innerHTML = `
             <div class="popup modal firms-modal" role="dialog" aria-modal="true">
                 <div class="popup-title">
-                    <span>${FIRM_LABELS.title}</span>
+                    <span>Firmalar</span>
                     <button type="button" class="close" title="Yopish">×</button>
                 </div>
                 <div class="popup-body">
+                    <div class="firms-totals"><div class="values-note">Yuklanmoqda...</div></div>
+                    <div class="firm-tabs">
+                        ${['import', 'export'].map(ds => `
+                            <button type="button" class="firm-tab" data-dataset="${ds}">${FIRM_LABELS[ds].tab} <span class="count">…</span></button>`).join('')}
+                    </div>
                     <div class="firms-summary"></div>
-                    ${filtered ? `<div class="firms-note">Jadvaldagi filtrlar hisobga olingan</div>` : ''}
+                    <div class="firms-note" hidden></div>
                     <input class="p-search" type="search" placeholder="Firma nomi yoki STIR bo'yicha qidirish...">
                     <div class="firms-list"><div class="values-note">Yuklanmoqda...</div></div>
                 </div>
@@ -1742,8 +1793,10 @@
         const modal = backdrop.querySelector('.modal');
         const listEl = modal.querySelector('.firms-list');
         const summaryEl = modal.querySelector('.firms-summary');
+        const noteEl = modal.querySelector('.firms-note');
         const body = modal.querySelector('.popup-body');
 
+        let dataset = DATASET;
         let search = '';
         let page = 0;
         let lastPage = 1;
@@ -1759,7 +1812,23 @@
         backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
         modal.querySelector('.close').addEventListener('click', close);
 
+        // umumiy sonlar: import, eksport, ikkalasida jami takrorlanmas, ikkalasida ham bor
+        loadFirmsSummary().then(totals => {
+            modal.querySelector('.firms-totals').innerHTML = `
+                <div class="stat"><strong>${numberFormat.format(totals.import.total)}</strong>import firmalar</div>
+                <div class="stat"><strong>${numberFormat.format(totals.export.total)}</strong>eksport firmalar</div>
+                <div class="stat main"><strong>${numberFormat.format(totals.unique_total)}</strong>jami takrorlanmas firma</div>
+                <div class="stat"><strong>${numberFormat.format(totals.both)}</strong>ham import, ham eksport qilgan</div>`;
+            modal.querySelectorAll('.firm-tab').forEach(btn => {
+                btn.querySelector('.count').textContent = numberFormat.format(totals[btn.dataset.dataset].total);
+            });
+        }).catch(e => {
+            modal.querySelector('.firms-totals').innerHTML = `<div class="values-note">${esc(e.message)}</div>`;
+        });
+
         function firmCard(f, index) {
+            const labels = FIRM_LABELS[dataset];
+            const other = dataset === 'export' ? 'import' : 'export';
             const address = f.address
                 ? [f.address.region, f.address.district].filter(Boolean).join(', ') || f.address.address
                 : null;
@@ -1769,23 +1838,27 @@
                         <strong>${esc(c.full_name)}</strong>${c.position ? ' — ' + esc(c.position) : ''}${c.phone ? ' · ' + esc(c.phone) : ''}
                         ${f.contacts.length > 1 ? `<span class="muted">(${numberFormat.format(c.rows)} qator)</span>` : ''}
                     </span></div>`).join('')
-                : `<div class="line"><span>👤</span><span class="muted">${DATASET === 'export' ? "Xodim kiritilmagan" : "Xodim ma'lumoti yo'q"}</span></div>`;
+                : `<div class="line"><span>👤</span><span class="muted">${labels.noContact}</span></div>`;
 
             return `
                 <div class="firm-card">
                     <div class="rank">${index}</div>
                     <div class="title" title="${esc(f.names.join(' | '))}">${esc(f.name || '-')}</div>
-                    <div class="rows">${numberFormat.format(f.rows)} qator</div>
+                    <div class="side">
+                        <div class="rows">${numberFormat.format(f.rows)} qator</div>
+                        <button type="button" class="btn-outline" data-show="${esc(f.inn)}" title="Jadvalni shu firma (STIR) bo'yicha filtrlash">Jadvalda ko'rsatish</button>
+                    </div>
                     <div class="sub">
                         STIR: <strong>${esc(f.inn)}</strong>
                         ${f.last_date ? ` · Oxirgi: ${formatValue(f.last_date, 'date')}` : ''}
                         ${f.names.length > 1 ? ` · <span title="${esc(f.names.join(' | '))}">${f.names.length} xil nomda yozilgan</span>` : ''}
+                        ${f.in_other ? ` · <a class="also-chip" href="${firmPageUrl(other, f.inn)}" title="${FIRM_LABELS[other].tab} — jadvalda ko'rish">${labels.alsoIn} →</a>` : ''}
                     </div>
                     <div class="info">
                         ${address ? `<div class="line"><span>📍</span><span title="${esc(f.address.address || '')}">${esc(address)}</span></div>` : ''}
                         ${f.phones?.length ? `<div class="line"><span>📞</span><span>${f.phones.map(esc).join(', ')}</span></div>` : ''}
                         ${contacts}
-                        ${f.countries.length ? `<div class="line"><span>🌍</span><span>${FIRM_LABELS.country}:
+                        ${f.countries.length ? `<div class="line"><span>🌍</span><span>${labels.country}:
                             ${f.countries.map(c => `<span class="chip">${esc(c.value)} · ${numberFormat.format(c.rows)}</span>`).join('')}</span></div>` : ''}
                     </div>
                 </div>`;
@@ -1798,7 +1871,12 @@
                 shown = 0;
             }
 
-            const params = buildParams();
+            // jadval filtrlari faqat joriy bo'lim firmalariga qo'llanadi
+            const filtered = dataset === DATASET && Object.keys(state.filters).length > 0;
+            noteEl.hidden = !filtered;
+            noteEl.textContent = 'Jadvaldagi filtrlar hisobga olingan';
+
+            const params = dataset === DATASET ? buildParams() : new URLSearchParams();
             params.append('page', page + 1);
             if (search) params.append('q', search);
 
@@ -1806,7 +1884,7 @@
             if (moreBtn) moreBtn.disabled = true;
 
             try {
-                const result = await api(`${API}/firms?${params}`);
+                const result = await api(`/api/uzbekistan-${dataset}/firms?${params}`);
                 if (current !== requestId) return; // eskirgan javob
                 const data = result.data;
 
@@ -1814,7 +1892,7 @@
                 lastPage = data.last_page;
 
                 summaryEl.innerHTML = `
-                    <div class="stat"><strong>${numberFormat.format(data.total)}</strong>takrorlanmas firma</div>
+                    <div class="stat"><strong>${numberFormat.format(data.total)}</strong>${filtered || search ? 'topilgan firma' : 'takrorlanmas firma'}</div>
                     <div class="stat"><strong>${numberFormat.format(data.with_contacts)}</strong>xodimi bor</div>
                     <div class="stat"><strong>${numberFormat.format(data.total - data.with_contacts)}</strong>xodimi yo'q</div>
                     <div class="stat"><strong>${numberFormat.format(data.rows)}</strong>qator</div>`;
@@ -1844,13 +1922,36 @@
             }
         }
 
+        function selectTab(ds) {
+            dataset = ds;
+            modal.querySelectorAll('.firm-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.dataset === ds));
+            listEl.innerHTML = `<div class="values-note">Yuklanmoqda...</div>`;
+            load(true);
+        }
+
+        modal.querySelectorAll('.firm-tab').forEach(btn => btn.addEventListener('click', () => selectTab(btn.dataset.dataset)));
+
+        // "Jadvalda ko'rsatish": jadval shu firmaning STIR'i bo'yicha filtrlanadi (boshqa filtrlar saqlanadi).
+        // Boshqa bo'lim firmasi bo'lsa — o'sha sahifaga o'tib filtrlanadi.
+        listEl.addEventListener('click', e => {
+            const btn = e.target.closest('[data-show]');
+            if (!btn) return;
+            if (dataset !== DATASET) {
+                window.location.href = firmPageUrl(dataset, btn.dataset.show);
+                return;
+            }
+            close();
+            setFilter(FIRM_LABELS[DATASET].innColumn, { values: [btn.dataset.show], mode: 'in' });
+            document.querySelector('.table-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
         modal.querySelector('.p-search').addEventListener('input', debounce(e => {
             search = e.target.value.trim();
             load(true);
         }, 300));
 
         modal.querySelector('.p-search').focus();
-        load(true);
+        selectTab(DATASET);
     }
 
     // ================= Xodim qo'shish (faqat eksport) =================
@@ -2121,9 +2222,19 @@
             saved = (Array.isArray(saved) ? saved : []).filter(n => names.includes(n));
             state.visible = saved.length ? saved : DEFAULT_COLUMNS.filter(n => names.includes(n));
 
+            // "Firmalar" oynasidan boshqa bo'limga o'tilganda: ?inn=... — jadval shu firma bo'yicha filtrlanadi
+            const url = new URL(window.location.href);
+            const inn = url.searchParams.get('inn');
+            if (inn) {
+                state.filters[FIRM_LABELS[DATASET].innColumn] = { values: [inn], mode: 'in' };
+                url.searchParams.delete('inn');
+                history.replaceState(null, '', url);
+            }
+
             renderAll();
             loadData();
             loadTasks();
+            loadFirmsSummary().catch(e => console.error(e));
         } catch (e) {
             document.getElementById('tableBody').innerHTML =
                 `<tr class="loading-row"><td>${esc(e.message)}</td></tr>`;
