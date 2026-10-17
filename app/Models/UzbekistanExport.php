@@ -14,6 +14,15 @@ class UzbekistanExport extends Model
     /**
      * Ustun => sarlavha (asl Excel fayldagi nomi). Ustunlar tartibi — jadval va export tartibi.
      */
+    /** "Firmalar" oynasi uchun (App\Support\FirmDirectory): firma — eksportyor */
+    public const FIRM = [
+        'inn' => 'exporter_inn',
+        'name' => 'exporter_name',
+        'date' => 'date',
+        'contacts' => ['responsible_person_name', 'responsible_person_position', 'responsible_person_phone'],
+        'country' => 'destination_country',
+    ];
+
     public const LABELS = [
         'date' => 'Date',
         'exporter_name' => 'Exporter',

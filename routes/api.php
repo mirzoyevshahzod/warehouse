@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [UzbekistanImportController::class, 'index'])->defaults('dataset', $dataset);
             Route::get('/columns', [UzbekistanImportController::class, 'columns'])->defaults('dataset', $dataset);
             Route::get('/filter-options', [UzbekistanImportController::class, 'filterOptions'])->defaults('dataset', $dataset);
+            Route::get('/firms', [UzbekistanImportController::class, 'firms'])->defaults('dataset', $dataset);
             Route::post('/export', [UzbekistanImportController::class, 'export'])->defaults('dataset', $dataset);
         });
     }

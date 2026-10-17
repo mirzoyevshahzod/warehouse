@@ -8,6 +8,7 @@ use App\Jobs\ImportUzbekistanFile;
 use App\Models\UzbekistanImport;
 use App\Models\UzbekistanImportTask;
 use App\Support\ExcelFilter;
+use App\Support\FirmDirectory;
 use App\Support\TradeDataset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -110,6 +111,39 @@ class UzbekistanImportController extends Controller
         return response()->json([
             'status' => true,
             'data' => $options
+        ]);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/uzbekistan-import/firms",
+     *     summary="Takrorlanmas firmalar (STIR bo'yicha) — nomlari, manzili, telefonlari, mas'ul xodimlari",
+     *     description="Import — importyorlar, eksport (/api/uzbekistan-export/firms) — eksportyorlar. Qatorlar soni bo'yicha kamayish tartibida. Jadval filtrlari (filters[...]) hisobga olinadi.",
+     *     tags={"Uzbekistan Import"},
+     *     @OA\Parameter(name="q", in="query", description="Firma nomi yoki STIR bo'yicha qidirish", required=false, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="per_page", in="query", description="Default 20, max 100", required=false, @OA\Schema(type="integer")),
+     *     @OA\Response(response=200, description="{total, with_contacts, rows, current_page, last_page, data: [{inn, name, names, rows, last_date, address, phones, contacts, countries}]}")
+     * )
+     */
+    public function firms(Request $request)
+    {
+        $request->validate([
+            'q' => 'nullable|string|max:255',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $firms = (new FirmDirectory($this->model($request)))->paginate(
+            $this->filterParams($request),
+            $request->q,
+            (int) $request->input('page', 1),
+            (int) $request->input('per_page', 20),
+        );
+
+        return response()->json([
+            'status' => true,
+            'data' => $firms,
         ]);
     }
 

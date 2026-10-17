@@ -297,6 +297,46 @@ class UzbekistanImportTest extends TestCase
         $this->assertSame([3100, 2000, 50, 5], array_map(fn ($r) => (int) $r[$weight], array_slice($rows, 1)));
     }
 
+    public function test_firms_are_unique_by_inn_with_contacts(): void
+    {
+        $this->seedRows();
+
+        $result = $this->getJson('/api/uzbekistan-import/firms')->assertOk()->json('data');
+
+        // 307281628 — 4 qator (4 xil nom bilan), 207144815 — 1 qator; ko'p qatorli birinchi
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(2, $result['with_contacts']);
+        $this->assertSame(5, $result['rows']);
+        $this->assertSame(['307281628', '207144815'], array_column($result['data'], 'inn'));
+
+        $firm = $result['data'][0];
+        $this->assertSame(4, $firm['rows']);
+        $this->assertCount(4, $firm['names']);
+        $this->assertSame('2026-08-31', $firm['last_date']);
+        $this->assertSame('ANDIJON VILOYATI', $firm['address']['region']);
+        $this->assertSame([['full_name' => 'КАБИЛОВ ШЕРЗОД МАХАМАДЖОНОВИЧ', 'position' => 'ДИРЕКТОР', 'phone' => '+998911209099', 'rows' => 4]], $firm['contacts']);
+        $this->assertSame([['value' => 'CHINA', 'rows' => 3], ['value' => 'RUSSIA', 'rows' => 1]], $firm['countries']);
+
+        // jadval filtrlari hisobga olinadi
+        $filtered = $this->getJson('/api/uzbekistan-import/firms?'.http_build_query([
+            'filters' => ['origin_country' => ['values' => ['RUSSIA']]],
+        ]))->json('data');
+        $this->assertSame(1, $filtered['total']);
+        $this->assertSame(1, $filtered['data'][0]['rows']);
+        $this->assertSame(['JSC THE ONE'], $filtered['data'][0]['names']);
+
+        // qidiruv nom yoki STIR bo'yicha; % oddiy belgi sifatida
+        $this->assertSame(['207144815'], array_column($this->getJson('/api/uzbekistan-import/firms?q=max')->json('data.data'), 'inn'));
+        $this->assertSame(['207144815'], array_column($this->getJson('/api/uzbekistan-import/firms?q=2071')->json('data.data'), 'inn'));
+        $this->assertSame(['307281628'], array_column($this->getJson('/api/uzbekistan-import/firms?q=100%25')->json('data.data'), 'inn'));
+        $this->assertSame(0, $this->getJson('/api/uzbekistan-import/firms?q=1%25')->json('data.total'));
+
+        // sahifalash
+        $page = $this->getJson('/api/uzbekistan-import/firms?per_page=1&page=2')->json('data');
+        $this->assertSame(2, $page['last_page']);
+        $this->assertSame(['207144815'], array_column($page['data'], 'inn'));
+    }
+
     /**
      * 5 ta qator:
      *  1 LLC COCO CERAMIC PRO  АВТО CHINA  CIF 3100kg brand ARSA  transit 08-28 hs 3214

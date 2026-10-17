@@ -15,6 +15,17 @@ class UzbekistanImport extends Model
      * Ustun => sarlavha (asl Excel fayldagi nomi; ajratib olingan ustunlar uchun shunga o'xshash nom).
      * Ustunlar tartibi — jadval va export tartibi.
      */
+    /** "Firmalar" oynasi uchun (App\Support\FirmDirectory): firma — importyor */
+    public const FIRM = [
+        'inn' => 'importer_inn',
+        'name' => 'importer_name',
+        'date' => 'registration_date',
+        'address' => ['importer_address', 'importer_region', 'importer_district'],
+        'phone' => 'importer_phone',
+        'contacts' => ['responsible_person_name', 'responsible_person_position', 'responsible_person_phone'],
+        'country' => 'origin_country',
+    ];
+
     public const LABELS = [
         'date' => 'Date',
         'registration_date' => 'Registration Date',

@@ -105,8 +105,30 @@
         .tasks-section h3 {
             font-size: 1rem;
             color: #1a237e;
-            margin-bottom: 12px;
+            margin: 0;
         }
+        .tasks-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .btn-outline {
+            padding: 5px 12px;
+            font-size: .82rem;
+            border-radius: 6px;
+            border: 1px solid #1976D2;
+            background: white;
+            color: #1976D2;
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .btn-outline:hover { background: #e3f2fd; }
+        .btn-outline:disabled { opacity: .6; cursor: wait; }
+        #tasksList.expanded { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+        .tasks-more { text-align: center; padding-top: 8px; }
         .task {
             display: grid;
             grid-template-columns: 28px minmax(0, 340px) 1fr 130px;
@@ -294,6 +316,72 @@
         .columns-popup .quick { display: flex; gap: 8px; margin-bottom: 8px; }
         .columns-popup .quick button { flex: 1; }
 
+        /* Firmalar */
+        .btn-firms {
+            background: linear-gradient(135deg, #26A69A 0%, #00796B 100%);
+            color: white;
+        }
+        .popup.modal.firms-modal { width: 900px; height: min(780px, calc(100vh - 20px)); }
+        .firms-modal .popup-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .firms-modal .popup-title .close {
+            border: none;
+            background: none;
+            font-size: 1.4rem;
+            line-height: 1;
+            color: #9e9e9e;
+            cursor: pointer;
+        }
+        .firms-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .firms-summary .stat {
+            background: #f5f8ff;
+            border: 1px solid #e3f2fd;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: .82rem;
+            color: #616161;
+        }
+        .firms-summary .stat strong { display: block; font-size: 1.05rem; color: #1a237e; }
+        .firms-note { font-size: .8rem; color: #e65100; margin-bottom: 8px; }
+        .firm-card {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr) auto;
+            gap: 4px 10px;
+        }
+        .firm-card .rank {
+            grid-row: span 2;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e0f2f1;
+            color: #00695c;
+            font-weight: 700;
+            font-size: .8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .firm-card .title { font-weight: 700; color: #1a237e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .firm-card .rows { font-weight: 700; color: #00796B; white-space: nowrap; text-align: right; }
+        .firm-card .sub { font-size: .8rem; color: #757575; grid-column: 2 / -1; }
+        .firm-card .info { grid-column: 2 / -1; font-size: .84rem; color: #424242; display: flex; flex-direction: column; gap: 3px; }
+        .firm-card .line { display: flex; gap: 6px; align-items: baseline; }
+        .firm-card .line > span:first-child { flex: none; width: 18px; text-align: center; }
+        .firm-card .contact strong { color: #2e7d32; }
+        .firm-card .muted { color: #9e9e9e; font-style: italic; }
+        .chip {
+            display: inline-block;
+            background: #f1f3f4;
+            border-radius: 10px;
+            padding: 1px 8px;
+            margin: 0 4px 2px 0;
+            font-size: .78rem;
+        }
+        .firms-more { text-align: center; padding: 6px 0 2px; }
+
         /* Xodim qo'shish (eksport) */
         .btn-contact {
             background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
@@ -389,6 +477,9 @@
 
         @media (max-width: 768px) {
             .form-grid { grid-template-columns: 1fr; }
+            .firm-card { grid-template-columns: minmax(0, 1fr) auto; }
+            .firm-card .rank { display: none; }
+            .firm-card .sub, .firm-card .info { grid-column: 1 / -1; }
             .task { grid-template-columns: 28px 1fr; }
             .task .progress-wrap, .task .actions { grid-column: 1 / -1; }
         }
@@ -490,6 +581,14 @@
                 </svg>
                 Ustunlar
             </button>
+            <button class="btn btn-firms" id="firmsBtn" title="Takrorlanmas firmalar va ularning kontaktlari">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
+                    <path d="M3 21h18"></path>
+                    <path d="M5 21V7l7-4 7 4v14"></path>
+                    <path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"></path>
+                </svg>
+                Firmalar
+            </button>
             @if ($dataset === 'export')
                 <button class="btn btn-contact" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
                     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
@@ -505,7 +604,10 @@
 
         <!-- Import / export jarayonlari -->
         <div class="tasks-section" id="tasksSection" hidden>
-            <h3>Import / Export jarayonlari</h3>
+            <div class="tasks-head">
+                <h3>Import / Export jarayonlari</h3>
+                <button type="button" class="btn-outline" id="tasksToggle" hidden></button>
+            </div>
             <div id="tasksList"></div>
         </div>
 
@@ -562,6 +664,7 @@
         columns: `${STORAGE_PREFIX}.visibleColumns`,
         filterMode: `${STORAGE_PREFIX}.filterMode`,
         perPage: `${STORAGE_PREFIX}.perPage`,
+        tasksExpanded: `${STORAGE_PREFIX}.tasksExpanded`,
     };
 
     /** Birinchi ochilganda ko'rinadigan ustunlar */
@@ -1351,6 +1454,12 @@
     const ownUploads = new Set();   // shu sahifada yuklangan fayllar — boshqa bo'limga tushsa ham ko'rinib turadi
     let uploadProgress = null;    // {name, percent}
     let pollTimer = null;
+    // yopiq holatda faqat oxirgi jarayon (va hali tugamaganlar), ochiq holatda — butun tarix
+    let tasksExpanded = localStorage.getItem(STORAGE.tasksExpanded) === '1';
+    let tasksTotal = 0;           // shu bo'limdagi jarayonlar soni (serverdan)
+    let tasksLastPage = 1;
+    let tasksPage = 0;
+    const isRunning = t => t.status === 'pending' || t.status === 'processing';
 
     const STATUS_TEXT = {
         pending: 'Navbatda',
@@ -1363,12 +1472,18 @@
         const section = document.getElementById('tasksSection');
         const list = document.getElementById('tasksList');
         // faqat shu bo'limning vazifalari (+ shu yerda yuklangan, lekin boshqa bo'limga tushgan fayllar)
-        const items = [...tasks.values()]
+        const all = [...tasks.values()]
             .filter(t => (t.dataset || 'import') === DATASET || ownUploads.has(t.id))
-            .sort((a, b) => b.id - a.id)
-            .slice(0, 5);
+            .sort((a, b) => b.id - a.id);
+        const items = tasksExpanded ? all : all.filter((t, i) => i === 0 || isRunning(t));
+        const total = Math.max(tasksTotal, all.length);
 
-        section.hidden = !items.length && !uploadProgress;
+        section.hidden = !all.length && !uploadProgress;
+
+        const toggle = document.getElementById('tasksToggle');
+        toggle.hidden = total < 2;
+        toggle.textContent = tasksExpanded ? 'Faqat oxirgisi' : `Butun tarix (${numberFormat.format(total)})`;
+        list.classList.toggle('expanded', tasksExpanded);
 
         let html = '';
 
@@ -1426,14 +1541,25 @@
                 </div>`;
         }).join('');
 
+        if (tasksExpanded && tasksPage < tasksLastPage) {
+            html += `<div class="tasks-more"><button type="button" class="btn-outline" data-more>Yana ko'rsatish</button></div>`;
+        }
+
         list.innerHTML = html;
+        list.querySelector('[data-more]')?.addEventListener('click', e => {
+            e.currentTarget.disabled = true;
+            loadTasks(tasksPage + 1);
+        });
         list.querySelectorAll('[data-download]').forEach(b => b.addEventListener('click', () => downloadExport(tasks.get(Number(b.dataset.download)))));
     }
 
-    async function loadTasks() {
+    async function loadTasks(page = 1) {
         try {
-            const result = await api(`${TASKS_API}/tasks?dataset=${DATASET}`);
-            result.data.data.slice(0, 5).forEach(t => tasks.set(t.id, t));
+            const result = await api(`${TASKS_API}/tasks?dataset=${DATASET}&page=${page}`);
+            result.data.data.forEach(t => tasks.set(t.id, t));
+            tasksTotal = result.data.total;
+            tasksLastPage = result.data.last_page;
+            tasksPage = Math.max(tasksPage, page);
             renderTasks();
             schedulePoll();
         } catch (e) {
@@ -1443,12 +1569,12 @@
 
     function schedulePoll() {
         clearTimeout(pollTimer);
-        const running = [...tasks.values()].some(t => t.status === 'pending' || t.status === 'processing');
+        const running = [...tasks.values()].some(isRunning);
         if (running) pollTimer = setTimeout(pollTasks, 1500);
     }
 
     async function pollTasks() {
-        const running = [...tasks.values()].filter(t => t.status === 'pending' || t.status === 'processing');
+        const running = [...tasks.values()].filter(isRunning);
 
         await Promise.all(running.map(async t => {
             try {
@@ -1505,6 +1631,7 @@
             if (xhr.status === 202 && result?.data) {
                 tasks.set(result.data.id, result.data);
                 ownUploads.add(result.data.id);
+                if ((result.data.dataset || 'import') === DATASET) tasksTotal++;
                 renderTasks();
                 schedulePoll();
             } else {
@@ -1544,6 +1671,7 @@
             const result = await api(`${API}/export`, { method: 'POST', body: JSON.stringify(body) });
             tasks.set(result.data.id, result.data);
             autoDownload.add(result.data.id);
+            tasksTotal++;
             renderTasks();
             schedulePoll();
         } catch (e) {
@@ -1581,6 +1709,148 @@
             console.error(e);
             alert('Xatolik yuz berdi');
         }
+    }
+
+    // ================= Firmalar =================
+
+    const FIRM_LABELS = DATASET === 'export'
+        ? { title: 'Eksportyor firmalar', country: 'Boradigan davlat' }
+        : { title: 'Importyor firmalar', country: 'Kelib chiqish davlati' };
+
+    /** Takrorlanmas firmalar (STIR bo'yicha) — qatorlar soni bo'yicha kamayish tartibida, jadval filtrlari bilan */
+    function openFirmsModal() {
+        closePopup();
+
+        const filtered = Object.keys(state.filters).length > 0;
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.innerHTML = `
+            <div class="popup modal firms-modal" role="dialog" aria-modal="true">
+                <div class="popup-title">
+                    <span>${FIRM_LABELS.title}</span>
+                    <button type="button" class="close" title="Yopish">×</button>
+                </div>
+                <div class="popup-body">
+                    <div class="firms-summary"></div>
+                    ${filtered ? `<div class="firms-note">Jadvaldagi filtrlar hisobga olingan</div>` : ''}
+                    <input class="p-search" type="search" placeholder="Firma nomi yoki STIR bo'yicha qidirish...">
+                    <div class="firms-list"><div class="values-note">Yuklanmoqda...</div></div>
+                </div>
+            </div>`;
+        document.body.appendChild(backdrop);
+
+        const modal = backdrop.querySelector('.modal');
+        const listEl = modal.querySelector('.firms-list');
+        const summaryEl = modal.querySelector('.firms-summary');
+        const body = modal.querySelector('.popup-body');
+
+        let search = '';
+        let page = 0;
+        let lastPage = 1;
+        let shown = 0;
+        let requestId = 0;
+
+        const close = () => {
+            backdrop.remove();
+            document.removeEventListener('keydown', onKey);
+        };
+        const onKey = e => { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+        backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+        modal.querySelector('.close').addEventListener('click', close);
+
+        function firmCard(f, index) {
+            const address = f.address
+                ? [f.address.region, f.address.district].filter(Boolean).join(', ') || f.address.address
+                : null;
+            const contacts = f.contacts.length
+                ? f.contacts.map(c => `
+                    <div class="line contact"><span>👤</span><span>
+                        <strong>${esc(c.full_name)}</strong>${c.position ? ' — ' + esc(c.position) : ''}${c.phone ? ' · ' + esc(c.phone) : ''}
+                        ${f.contacts.length > 1 ? `<span class="muted">(${numberFormat.format(c.rows)} qator)</span>` : ''}
+                    </span></div>`).join('')
+                : `<div class="line"><span>👤</span><span class="muted">${DATASET === 'export' ? "Xodim kiritilmagan" : "Xodim ma'lumoti yo'q"}</span></div>`;
+
+            return `
+                <div class="firm-card">
+                    <div class="rank">${index}</div>
+                    <div class="title" title="${esc(f.names.join(' | '))}">${esc(f.name || '-')}</div>
+                    <div class="rows">${numberFormat.format(f.rows)} qator</div>
+                    <div class="sub">
+                        STIR: <strong>${esc(f.inn)}</strong>
+                        ${f.last_date ? ` · Oxirgi: ${formatValue(f.last_date, 'date')}` : ''}
+                        ${f.names.length > 1 ? ` · <span title="${esc(f.names.join(' | '))}">${f.names.length} xil nomda yozilgan</span>` : ''}
+                    </div>
+                    <div class="info">
+                        ${address ? `<div class="line"><span>📍</span><span title="${esc(f.address.address || '')}">${esc(address)}</span></div>` : ''}
+                        ${f.phones?.length ? `<div class="line"><span>📞</span><span>${f.phones.map(esc).join(', ')}</span></div>` : ''}
+                        ${contacts}
+                        ${f.countries.length ? `<div class="line"><span>🌍</span><span>${FIRM_LABELS.country}:
+                            ${f.countries.map(c => `<span class="chip">${esc(c.value)} · ${numberFormat.format(c.rows)}</span>`).join('')}</span></div>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        async function load(reset) {
+            const current = ++requestId;
+            if (reset) {
+                page = 0;
+                shown = 0;
+            }
+
+            const params = buildParams();
+            params.append('page', page + 1);
+            if (search) params.append('q', search);
+
+            const moreBtn = listEl.querySelector('[data-more]');
+            if (moreBtn) moreBtn.disabled = true;
+
+            try {
+                const result = await api(`${API}/firms?${params}`);
+                if (current !== requestId) return; // eskirgan javob
+                const data = result.data;
+
+                page = data.current_page;
+                lastPage = data.last_page;
+
+                summaryEl.innerHTML = `
+                    <div class="stat"><strong>${numberFormat.format(data.total)}</strong>takrorlanmas firma</div>
+                    <div class="stat"><strong>${numberFormat.format(data.with_contacts)}</strong>xodimi bor</div>
+                    <div class="stat"><strong>${numberFormat.format(data.total - data.with_contacts)}</strong>xodimi yo'q</div>
+                    <div class="stat"><strong>${numberFormat.format(data.rows)}</strong>qator</div>`;
+
+                const html = data.data.map(f => firmCard(f, ++shown)).join('');
+                if (reset) {
+                    listEl.innerHTML = html || `<div class="values-note">Firma topilmadi</div>`;
+                    body.scrollTop = 0;
+                } else {
+                    listEl.querySelector('.firms-more')?.remove();
+                    listEl.insertAdjacentHTML('beforeend', html);
+                }
+
+                if (page < lastPage) {
+                    listEl.insertAdjacentHTML('beforeend', `
+                        <div class="firms-more">
+                            <button type="button" class="btn-outline" data-more>
+                                Yana ko'rsatish (${numberFormat.format(shown)} / ${numberFormat.format(data.total)})
+                            </button>
+                        </div>`);
+                    listEl.querySelector('[data-more]').addEventListener('click', () => load(false));
+                }
+            } catch (e) {
+                if (current !== requestId) return;
+                if (reset) listEl.innerHTML = `<div class="values-note">${esc(e.message)}</div>`;
+                else alert(e.message);
+            }
+        }
+
+        modal.querySelector('.p-search').addEventListener('input', debounce(e => {
+            search = e.target.value.trim();
+            load(true);
+        }, 300));
+
+        modal.querySelector('.p-search').focus();
+        load(true);
     }
 
     // ================= Xodim qo'shish (faqat eksport) =================
@@ -1791,6 +2061,16 @@
         state.filterMode = !state.filterMode;
         localStorage.setItem(STORAGE.filterMode, state.filterMode ? '1' : '0');
         renderAll();
+    });
+    document.getElementById('firmsBtn').addEventListener('click', e => {
+        e.stopPropagation();
+        openFirmsModal();
+    });
+    document.getElementById('tasksToggle').addEventListener('click', () => {
+        tasksExpanded = !tasksExpanded;
+        localStorage.setItem(STORAGE.tasksExpanded, tasksExpanded ? '1' : '0');
+        document.getElementById('tasksList').scrollTop = 0;
+        renderTasks();
     });
     document.getElementById('contactBtn')?.addEventListener('click', e => {
         e.stopPropagation();

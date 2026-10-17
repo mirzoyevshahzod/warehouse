@@ -71,6 +71,22 @@ class UzbekistanExporterContactTest extends TestCase
         $this->assertSame(['305048781', '306803919', '300000002', '300000001'], $inns);
     }
 
+    public function test_firms_endpoint_shows_exporters_with_assigned_contact(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/306803919/contact', ['full_name' => 'Valiyev Bobur', 'position' => 'Direktor'])->assertOk();
+
+        $result = $this->getJson('/api/uzbekistan-export/firms')->assertOk()->json('data');
+
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(1, $result['with_contacts']);
+        $this->assertSame(['305048781', '306803919'], array_column($result['data'], 'inn'));
+        $this->assertSame('JSC UZKIMYOIMPEKS', $result['data'][0]['name']);
+        $this->assertSame([], $result['data'][0]['contacts']);
+        $this->assertNull($result['data'][0]['address']);
+        $this->assertSame([['full_name' => 'Valiyev Bobur', 'position' => 'Direktor', 'phone' => null, 'rows' => 2]], $result['data'][1]['contacts']);
+        $this->assertSame([['value' => 'RUSSIA', 'rows' => 2]], $result['data'][1]['countries']);
+    }
+
     public function test_saving_contact_writes_it_to_all_rows_of_the_firm(): void
     {
         $this->putJson('/api/uzbekistan-export/exporters/305048781/contact', [
