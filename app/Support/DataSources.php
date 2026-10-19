@@ -42,8 +42,8 @@ class DataSources
             'uzbekistan-import' => ['label' => "O'zbekiston import", 'group' => "O'zbekiston", 'model' => UzbekistanImport::class, 'route' => 'uzbekistanImport', 'icon' => 'download'],
             'uzbekistan-export' => ['label' => "O'zbekiston eksport", 'group' => "O'zbekiston", 'model' => UzbekistanExport::class, 'route' => 'uzbekistanExport', 'icon' => 'upload'],
 
-            'qozoq' => ['label' => "Qozog'iston", 'group' => "Qozog'iston", 'model' => Qozoq::class, 'route' => 'qozoqScraping', 'icon' => 'truck'],
-            'checked-qozoq' => ['label' => 'Tekshirilganlar', 'group' => "Qozog'iston", 'model' => CheckedQozoq::class, 'route' => 'checkedQozoqScraping', 'icon' => 'check'],
+            'qozoq' => ['label' => 'Umumiy', 'group' => "Qozog'iston", 'model' => Qozoq::class, 'route' => 'qozoqScraping', 'icon' => 'truck'],
+            'checked-qozoq' => ['label' => 'Tekshirilganlar (eksport)', 'group' => "Qozog'iston", 'model' => CheckedQozoq::class, 'route' => 'checkedQozoqScraping', 'icon' => 'check'],
             'import-qozoq' => ['label' => 'Import', 'group' => "Qozog'iston", 'model' => ImportQozoq::class, 'route' => 'importQozoqScraping', 'icon' => 'download'],
             'import-eksport-qozoq' => ['label' => 'Import-eksport', 'group' => "Qozog'iston", 'model' => ImportEksportQozoq::class, 'route' => 'importEksportQozoqScraping', 'icon' => 'swap'],
 
