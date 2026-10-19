@@ -17,6 +17,7 @@
  *         { key: 'date_and_time', label: 'Sana', format: 'hourRange' }, // yoki format: (value, row) => '...'
  *     ],
  *     exportName: values => 'fayl.xlsx',  // ixtiyoriy; bo'lmasa server bergan nom
+ *     dataKey: 'eombors',                 // ixtiyoriy; paginate javobi qaysi kalitda (default 'data', null — javobning o'zi)
  * });
  */
 (function () {
@@ -131,7 +132,8 @@
             try {
                 const result = await api(`${config.api}?${params}`);
                 if (current !== loadToken) return;
-                const paginated = result.data;
+                // ro'yxat odatda result.data'da; ba'zi API'larda boshqa kalitda (dataKey) yoki javobning o'zida (dataKey: null)
+                const paginated = config.dataKey === null ? result : result[config.dataKey || 'data'];
 
                 els.body.innerHTML = paginated.data.length
                     ? paginated.data.map(row => `<tr>${columns.map(c => cell(c, row)).join('')}</tr>`).join('')
