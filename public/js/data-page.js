@@ -21,7 +21,7 @@
  * });
  */
 (function () {
-    const { api, fmt, esc, icon, toast, token } = window.App;
+    const { api, fmt, esc, icon, toast, token, confirm } = window.App;
 
     const FORMATS = {
         date: v => v ? fmt.date(v) : null,
@@ -183,6 +183,14 @@
             els.file.value = '';
             if (!file) return;
 
+            const ok = await confirm({
+                title: 'Fayl yuklansinmi?',
+                message: `${file.name} (${fmt.size(file.size)}) — ma'lumotlar bazaga qo'shiladi.`,
+                confirmText: 'Yuklash',
+                icon: 'upload',
+            });
+            if (!ok) return;
+
             const label = els.upload.querySelector('span');
             const text = label.textContent;
             els.upload.disabled = true;
@@ -207,6 +215,15 @@
 
         // ===== Excel'ga yuklab olish =====
         els.export.addEventListener('click', async () => {
+            const active = filters.filter((f, i) => inputs[i].value.trim() !== '').map(f => f.label);
+            const ok = await confirm({
+                title: "Excel'ga yuklab olinsinmi?",
+                message: active.length ? `Faqat filtrga mos ma'lumotlar yuklab olinadi (${active.join(', ')}).` : "Filtr qo'yilmagan — barcha ma'lumotlar yuklab olinadi.",
+                confirmText: 'Yuklab olish',
+                icon: 'download',
+            });
+            if (!ok) return;
+
             const label = els.export.querySelector('span');
             const text = label.textContent;
             els.export.disabled = true;

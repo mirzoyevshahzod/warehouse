@@ -126,6 +126,14 @@
         if (password !== fields.passwordConfirm.value) return showError('Parollar bir xil emas');
 
         showError('');
+        const ok = await App.confirm({
+            title: "O'zgarishlar saqlansinmi?",
+            message: password ? "Ism, email va parol yangilanadi. Keyingi safar yangi parol bilan kirasiz." : 'Ism va email yangilanadi.',
+            confirmText: 'Saqlash',
+            icon: 'user',
+        });
+        if (!ok) return;
+
         saveBtn.disabled = true;
         try {
             const result = await api('/api/user/update', {

@@ -683,6 +683,7 @@
             const result = await api(`${API}?${params}`);
             if (current !== loadToken) return; // eskirgan javob
 
+            state.total = result.data.total;
             renderRows(result.data);
             renderPagination(result.data);
             document.getElementById('totalText').innerHTML =
@@ -1331,7 +1332,11 @@
             e.currentTarget.disabled = true;
             loadTasks(tasksPage + 1);
         });
-        list.querySelectorAll('[data-download]').forEach(b => b.addEventListener('click', () => downloadExport(tasks.get(Number(b.dataset.download)))));
+        list.querySelectorAll('[data-download]').forEach(b => b.addEventListener('click', async () => {
+            const task = tasks.get(Number(b.dataset.download));
+            const ok = await App.confirm({ title: 'Fayl yuklab olinsinmi?', message: task?.original_name || '', confirmText: 'Yuklab olish', icon: 'download' });
+            if (ok) downloadExport(task);
+        }));
     }
 
     async function loadTasks(page = 1) {
@@ -1434,6 +1439,15 @@
     }
 
     async function startExport() {
+        const filtersCount = Object.keys(state.filters).length;
+        const ok = await App.confirm({
+            title: "Excel'ga yuklab olinsinmi?",
+            message: `${state.total !== undefined ? numberFormat.format(state.total) + ' ta qator' : "Ma'lumotlar"} ${filtersCount ? `(${filtersCount} ta filtr bo'yicha)` : "(filtrsiz — barchasi)"} Excel faylga tayyorlanadi. Tayyor bo'lgach avtomatik yuklab olinadi.`,
+            confirmText: 'Yuklab olish',
+            icon: 'download',
+        });
+        if (!ok) return;
+
         const btn = document.getElementById('exportBtn');
         btn.disabled = true;
 
@@ -1853,6 +1867,14 @@
             if (!selected) return showError('Avval firmani tanlang');
             if (!nameInput.value.trim()) return showError('Xodimning ism familiyasini kiriting');
 
+            const ok = await App.confirm({
+                title: 'Xodim saqlansinmi?',
+                message: `${nameInput.value.trim()} — ${selected.name || selected.inn} firmasining barcha ${numberFormat.format(selected.rows)} ta qatoriga yoziladi.`,
+                confirmText: 'Saqlash',
+                icon: 'user',
+            });
+            if (!ok) return;
+
             saveBtn.disabled = true;
             try {
                 const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, {
@@ -1874,7 +1896,14 @@
         });
 
         deleteBtn.addEventListener('click', async () => {
-            if (!selected || !confirm(`${selected.name} firmasidan xodim olib tashlansinmi?`)) return;
+            if (!selected) return;
+            const ok = await App.confirm({
+                title: "Xodim olib tashlansinmi?",
+                message: `${selected.name || selected.inn} firmasidan xodim olib tashlanadi va ${numberFormat.format(selected.rows)} ta qatordan tozalanadi.`,
+                confirmText: "O'chirish",
+                danger: true,
+            });
+            if (!ok) return;
 
             try {
                 const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, { method: 'DELETE' });
@@ -1900,10 +1929,17 @@
     // ================= Tugmalar =================
 
     document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
-    document.getElementById('fileInput').addEventListener('change', function () {
+    document.getElementById('fileInput').addEventListener('change', async function () {
         const file = this.files[0];
         this.value = '';
-        if (file) upload(file);
+        if (!file) return;
+        const ok = await App.confirm({
+            title: 'Fayl yuklansinmi?',
+            message: `${file.name} (${App.fmt.size(file.size)}) — fayl turi (import/eksport) avtomatik aniqlanadi va fonda bazaga yoziladi.`,
+            confirmText: 'Yuklash',
+            icon: 'upload',
+        });
+        if (ok) upload(file);
     });
     document.getElementById('exportBtn').addEventListener('click', startExport);
     document.getElementById('filterModeBtn').addEventListener('click', () => {

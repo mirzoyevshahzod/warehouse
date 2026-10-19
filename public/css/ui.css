@@ -492,6 +492,38 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
+/* ===== Tasdiqlash oynasi (App.confirm) ===== */
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    background: var(--overlay);
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    animation: fade-in .12s ease;
+}
+.dialog {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 22px;
+    animation: dialog-in .15s ease;
+}
+.dialog-head { display: flex; gap: 14px; align-items: flex-start; }
+.dialog-icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--primary-soft); color: var(--primary-text); }
+.dialog-icon.danger { background: var(--danger-soft); color: var(--danger); }
+.dialog h2 { font-size: 1.05rem; font-weight: 650; margin-top: 2px; }
+.dialog p { color: var(--text-2); margin-top: 6px; overflow-wrap: anywhere; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.btn-danger-solid { background: var(--danger); color: #fff; }
+.btn-danger-solid:hover:not(:disabled) { filter: brightness(.92); }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+
 /* ===== Telefon (oxirida — yuqoridagi qoidalarni ustidan yozadi) ===== */
 @media (max-width: 640px) {
     .page-head h1 { font-size: 1.35rem; }

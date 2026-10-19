@@ -59,6 +59,11 @@
                 value = Math.floor(value / size);
             }
         },
+        /** fayl hajmi: "850 KB", "12.4 MB" */
+        size(bytes) {
+            const kb = (Number(bytes) || 0) / 1024;
+            return kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : `${(kb / 1024).toFixed(1)} MB`;
+        },
         duration(ms) {
             if (ms === null || ms === undefined) return '—';
             if (ms < 1000) return `${ms} ms`;
@@ -91,6 +96,62 @@
         el.innerHTML = `${icon(type === 'error' ? 'alert' : 'check')}<span>${esc(message)}</span>`;
         box.appendChild(el);
         setTimeout(() => el.remove(), 4000);
+    }
+
+    // ===== Tasdiqlash oynasi =====
+    /**
+     * Amal oldidan tasdiqlash: const ok = await App.confirm({ title, message, confirmText, danger, icon })
+     * Natija — true (tasdiqlandi) yoki false (bekor qilindi / Esc / fon bosildi).
+     */
+    function confirmDialog(options = {}) {
+        const opts = typeof options === 'string' ? { message: options } : options;
+        const title = opts.title || 'Tasdiqlang';
+        const danger = !!opts.danger;
+
+        return new Promise(resolve => {
+            const previousFocus = document.activeElement;
+            const backdrop = document.createElement('div');
+            backdrop.className = 'dialog-backdrop';
+            backdrop.innerHTML = `
+                <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogText">
+                    <div class="dialog-head">
+                        <div class="dialog-icon ${danger ? 'danger' : ''}">${icon(opts.icon || (danger ? 'alert' : 'check'))}</div>
+                        <div style="min-width:0">
+                            <h2 id="dialogTitle">${esc(title)}</h2>
+                            ${opts.message ? `<p id="dialogText">${esc(opts.message)}</p>` : ''}
+                        </div>
+                    </div>
+                    <div class="dialog-actions">
+                        <button type="button" class="btn btn-secondary" data-answer="no">${esc(opts.cancelText || 'Bekor qilish')}</button>
+                        <button type="button" class="btn ${danger ? 'btn-danger-solid' : 'btn-primary'}" data-answer="yes">${esc(opts.confirmText || 'Tasdiqlash')}</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(backdrop);
+
+            const yes = backdrop.querySelector('[data-answer="yes"]');
+            const no = backdrop.querySelector('[data-answer="no"]');
+
+            function close(answer) {
+                document.removeEventListener('keydown', onKey, true);
+                backdrop.remove();
+                previousFocus?.focus?.();
+                resolve(answer);
+            }
+            function onKey(e) {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); }
+                if (e.key === 'Tab') {
+                    // fokus oyna ichida qoladi
+                    e.preventDefault();
+                    (document.activeElement === yes ? no : yes).focus();
+                }
+            }
+
+            yes.addEventListener('click', () => close(true));
+            no.addEventListener('click', () => close(false));
+            backdrop.addEventListener('click', e => { if (e.target === backdrop) close(false); });
+            document.addEventListener('keydown', onKey, true);
+            yes.focus();
+        });
     }
 
     // ===== Yorug' / qorong'i rejim =====
@@ -180,6 +241,9 @@
     }
 
     async function logout() {
+        const ok = await confirmDialog({ title: 'Tizimdan chiqasizmi?', message: 'Qayta kirish uchun email va parol kerak bo\'ladi.', confirmText: 'Chiqish', danger: true, icon: 'logout' });
+        if (!ok) return;
+        document.getElementById('userMenu').hidden = true;
         try {
             await api('/api/logout', { method: 'POST' });
         } catch (e) {
@@ -190,7 +254,7 @@
         }
     }
 
-    window.App = { token, api, fmt, esc, icon, toast, cssVar, currentTheme, storage, user: null };
+    window.App = { token, api, fmt, esc, icon, toast, confirm: confirmDialog, cssVar, currentTheme, storage, user: null };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initLayout);
