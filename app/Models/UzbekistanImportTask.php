@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\TradeDataset;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UzbekistanImportTask extends Model
 {
@@ -58,6 +59,11 @@ class UzbekistanImportTask extends Model
         }
 
         return (int) min(99, floor($this->processed_rows * 100 / $this->total_rows));
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /** Vazifa qaysi ma'lumotlarga tegishli (import / eksport) */

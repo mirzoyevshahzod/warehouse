@@ -12,6 +12,7 @@ use App\Http\Controllers\API\QozoqController;
 use App\Http\Controllers\API\RWEomborController;
 use App\Http\Controllers\API\TurkeyController;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\CheckedQozoqController;
 use App\Http\Controllers\API\ImportQozoqController;
 use App\Http\Controllers\API\ImportEksportQozoqContoller;
@@ -31,53 +32,56 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('/dashboard/uploads', [DashboardController::class, 'uploads']);
     Route::put('/user/update', [AuthController::class, 'updateProfile']);
 
-    Route::post('/avia-eombor/import', [AVIAEomborController::class, 'import']);
+    Route::post('/avia-eombor/import', [AVIAEomborController::class, 'import'])->middleware('log.upload:eombor-avia');
     Route::get('/avia-e-ombor', [AVIAEomborController::class, 'index']);
     Route::get('/avia-e-ombor/export', [AVIAEomborController::class, 'export']);
 
-    Route::post('/rw-e-ombor/import', [RWEomborController::class, 'import']);
+    Route::post('/rw-e-ombor/import', [RWEomborController::class, 'import'])->middleware('log.upload:eombor-rw');
     Route::get('/rw-e-ombor', [RWEomborController::class, 'index']);
     Route::get('/rw-e-ombor/export', [RwEOmborController::class, 'export']);
 
-    Route::post('/at-e-ombor/import', [EomborController::class, 'import']);
+    Route::post('/at-e-ombor/import', [EomborController::class, 'import'])->middleware('log.upload:eombor-at');
     Route::get('/at-e-ombor', [EomborController::class, 'index']);
     Route::get('/at-e-ombor/export', [EomborController::class, 'export']);
 
-    Route::post('/belarus-benyakoni/import', [BelarusBenyakoniController::class, 'import']);
+    Route::post('/belarus-benyakoni/import', [BelarusBenyakoniController::class, 'import'])->middleware('log.upload:belarus-benyakoni');
     Route::get('/belarus-benyakoni', [BelarusBenyakoniController::class, 'index']);
     Route::get('/belarus-benyakoni/export', [BelarusBenyakoniController::class, 'export']);
 
-    Route::post('/belarus-brest/import', [BelarusBrestController::class, 'import']);
+    Route::post('/belarus-brest/import', [BelarusBrestController::class, 'import'])->middleware('log.upload:belarus-brest');
     Route::get('/belarus-brest', [BelarusBrestController::class, 'index']);
     Route::get('/belarus-brest/export', [BelarusBrestController::class, 'export']);
 
-    Route::post('/belarus-gigorovschina/import', [BelarusGigorovschinaController::class, 'import']);
+    Route::post('/belarus-gigorovschina/import', [BelarusGigorovschinaController::class, 'import'])->middleware('log.upload:belarus-gigorovschina');
     Route::get('/belarus-gigorovschina', [BelarusGigorovschinaController::class, 'index']);
     Route::get('/belarus-gigorovschina/export', [BelarusGigorovschinaController::class, 'export']);
 
-    Route::post('/belarus-komennii/import', [BelarusKomenniController::class, 'import']);
+    Route::post('/belarus-komennii/import', [BelarusKomenniController::class, 'import'])->middleware('log.upload:belarus-kamenny-log');
     Route::get('/belarus-komennii', [BelarusKomenniController::class, 'index']);
     Route::get('/belarus-komennii/export', [BelarusKomenniController::class, 'export']);
 
-    Route::post('/belarus-kozlovichi/import', [BelarusKozlovichiController::class, 'import']);
+    Route::post('/belarus-kozlovichi/import', [BelarusKozlovichiController::class, 'import'])->middleware('log.upload:belarus-kozlovichi');
     Route::get('/belarus-kozlovichi', [BelarusKozlovichiController::class, 'index']);
     Route::get('/belarus-kozlovichi/export', [BelarusKozlovichiController::class, 'export']);
 
-    Route::post('/turkey/import', [TurkeyController::class, 'import']);
+    Route::post('/turkey/import', [TurkeyController::class, 'import'])->middleware('log.upload:turkey');
     Route::get('/turkey', [TurkeyController::class, 'index']);
     Route::get('/turkey/export', [TurkeyController::class, 'export']);
 
-    Route::post('/qozoq/import', [QozoqController::class, 'import']);
+    Route::post('/qozoq/import', [QozoqController::class, 'import'])->middleware('log.upload:qozoq');
     Route::get('/qozoq', [QozoqController::class, 'index']);
     Route::get('/qozoq/export', [QozoqController::class, 'export']);
 
-     Route::post('/import-qozoq/import', [ImportQozoqController::class, 'import']);
+     Route::post('/import-qozoq/import', [ImportQozoqController::class, 'import'])->middleware('log.upload:import-qozoq');
     Route::get('/import-qozoq', [ImportQozoqController::class, 'index']);
     Route::get('/import-qozoq/export', [ImportQozoqController::class, 'export']);
 
-    Route::post('/import-eksport-qozoq/import', [ImportEksportQozoqContoller::class, 'import']);
+    Route::post('/import-eksport-qozoq/import', [ImportEksportQozoqContoller::class, 'import'])->middleware('log.upload:import-eksport-qozoq');
     Route::get('/import-eksport-qozoq', [ImportEksportQozoqContoller::class, 'index']);
     Route::get('/import-eksport-qozoq/export', [ImportEksportQozoqContoller::class, 'export']);
 
@@ -103,16 +107,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'save'])->where('inn', '[0-9A-Za-z]+');
     Route::delete('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'destroy'])->where('inn', '[0-9A-Za-z]+');
 
-    Route::post('/checked-qozoq/import', [CheckedQozoqController::class, 'import']);
+    Route::post('/checked-qozoq/import', [CheckedQozoqController::class, 'import'])->middleware('log.upload:checked-qozoq');
     Route::get('/checked-qozoq', [CheckedQozoqController::class, 'index']);
     Route::get('/checked-qozoq/export', [CheckedQozoqController::class, 'export']);
 
-    Route::post('/mintrans/import', [MintransController::class, 'import']);
+    Route::post('/mintrans/import', [MintransController::class, 'import'])->middleware('log.upload:mintrans');
     Route::get('/mintrans', [MintransController::class, 'index']);
     Route::get('/mintrans/export', [MintransController::class, 'export']);
 
     Route::get('/drivers', [DriverController::class, 'index']);
-    Route::post('/import-drivers', [DriverController::class, 'importDrivers']);
+    Route::post('/import-drivers', [DriverController::class, 'importDrivers'])->middleware('log.upload:drivers');
     Route::get('/export-drivers', [DriverController::class, 'export']);
 
     Route::get('/test', [TestController::class, 'index']);
