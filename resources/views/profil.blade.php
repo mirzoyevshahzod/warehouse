@@ -1,251 +1,147 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profil - DataScraper</title>
+@extends('layouts.app')
 
-    <style>
-        :root {
-            --primary: #0066ff;
-            --secondary: #00d4ff;
-            --dark: #1a1a2e;
-            --light: #f8f9fa;
-            --text-dark: #2d3748;
-            --text-light: #718096;
-        }
+@section('title', 'Profil')
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+@push('styles')
+<style>
+    .profile { max-width: 640px; }
+    .profile-head { display: flex; align-items: center; gap: 16px; padding: 20px; border-bottom: 1px solid var(--border); }
+    .profile-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1, #3b82f6);
+        color: white;
+        display: grid;
+        place-items: center;
+        font-size: 1.6rem;
+        font-weight: 700;
+        flex: none;
+    }
+    .profile-head strong { display: block; font-size: 1.1rem; }
+    .profile-head span { color: var(--muted); }
+    .profile-form { padding: 20px; display: grid; gap: 14px; }
+    .profile-form .field label { display: block; font-size: .84rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .profile-form .hint { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+    .profile-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .profile-section { font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 6px; }
+    .profile-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 16px 20px; border-top: 1px solid var(--border); }
+    .form-error { color: var(--danger); font-size: .85rem; }
+    @media (max-width: 640px) { .profile-form .row { grid-template-columns: 1fr; } }
+</style>
+@endpush
 
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-        }
+@section('content')
+    <div class="page-head">
+        <div>
+            <h1>Profil</h1>
+            <p>Ism, email va parolingizni o'zgartiring</p>
+        </div>
+    </div>
 
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 40px;
-            background: white;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-
-        .logo {
-            font-size: 1.6rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 80px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
-        }
-
-        .profile-avatar {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: linear-gradient(135deg,#0066ff,#00d4ff);
-            color: white;
-            font-size: 32px;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            margin: 0 auto 20px;
-        }
-
-        .profile-name {
-            text-align: center;
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        .profile-email {
-            text-align: center;
-            color: var(--text-light);
-            margin-bottom: 30px;
-        }
-
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            border-radius: 50px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: center;
-            text-decoration: none;
-            transition: 0.3s ease;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg,var(--primary),var(--secondary));
-            color: white;
-            margin-bottom: 15px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0,102,255,0.3);
-        }
-
-       .btn-secondary {
-            background: white;
-            color: #0066ff;
-            border: 2px solid #0066ff;
-        }
-
-        .btn-secondary:hover {
-            background: #0066ff;
-            color: white;
-        }
-
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-            display: block;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            border-radius: 10px;
-            border: 2px solid #e2e8f0;
-        }
-
-    </style>
-</head>
-<body>
-
-<nav>
-    <div class="logo">🚀 DataScraper</div>
-    <a href="/" style="text-decoration:none;color:#333;">Bosh sahifa</a>
-</nav>
-
-<div class="container" id="profileContainer">
-
-    <div class="profile-avatar" id="avatarLetter"></div>
-
-    <form id="profileForm">
-
-        <div class="form-group">
-            <label>Ism</label>
-            <input type="text" id="name" required>
+    <div class="card profile">
+        <div class="profile-head">
+            <div class="profile-avatar" id="avatar">·</div>
+            <div>
+                <strong id="headName">…</strong>
+                <span id="headEmail"></span>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="email" required>
-        </div>
+        <form id="profileForm" novalidate>
+            <div class="profile-form">
+                <div class="row">
+                    <div class="field">
+                        <label for="name">Ism</label>
+                        <input class="input" type="text" id="name" maxlength="255" required>
+                    </div>
+                    <div class="field">
+                        <label for="email">Email</label>
+                        <input class="input" type="email" id="email" required autocomplete="username">
+                    </div>
+                </div>
 
-        <div class="form-group">
-            <label>Yangi Parol (ixtiyoriy)</label>
-            <input type="password" id="password">
-        </div>
+                <div class="profile-section">Parolni o'zgartirish</div>
+                <div class="row">
+                    <div class="field">
+                        <label for="password">Yangi parol</label>
+                        <input class="input" type="password" id="password" autocomplete="new-password" placeholder="O'zgartirmaslik uchun bo'sh qoldiring">
+                        <div class="hint">Kamida 6 ta belgi</div>
+                    </div>
+                    <div class="field">
+                        <label for="passwordConfirm">Parolni takrorlang</label>
+                        <input class="input" type="password" id="passwordConfirm" autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="form-error" id="formError" hidden></div>
+            </div>
 
-        <button type="submit" class="btn btn-primary">
-            Saqlash
-        </button>
+            <div class="profile-actions">
+                <a href="/dashboard" class="btn btn-secondary">Bekor qilish</a>
+                <button type="submit" class="btn btn-primary" id="saveBtn">Saqlash</button>
+            </div>
+        </form>
+    </div>
+@endsection
 
-        <a href="/dashboard" class="btn btn-secondary">
-            Qaytish
-        </a>
-
-    </form>
-
-    <div id="message" style="margin-top:15px;"></div>
-
-</div>
-
-
+@push('scripts')
 <script>
-document.addEventListener("DOMContentLoaded", async function () {
+(function () {
+    const { api, toast } = App;
+    const form = document.getElementById('profileForm');
+    const errorBox = document.getElementById('formError');
+    const saveBtn = document.getElementById('saveBtn');
+    const fields = Object.fromEntries(['name', 'email', 'password', 'passwordConfirm'].map(id => [id, document.getElementById(id)]));
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-        window.location.href = "/login";
-        return;
+    function paint(user) {
+        const name = user.name || user.email || '';
+        document.getElementById('headName').textContent = name;
+        document.getElementById('headEmail').textContent = user.email || '';
+        document.getElementById('avatar').textContent = name.charAt(0).toUpperCase() || '·';
+        // tepadagi menyu ham yangilansin
+        document.getElementById('userName').textContent = name;
+        document.getElementById('userEmail').textContent = user.email || '';
+        if (!user.avatar) document.getElementById('userBtn').textContent = name.charAt(0).toUpperCase();
     }
 
-    const response = await fetch('/api/user', {
-        headers: { 'Authorization': 'Bearer ' + token }
+    function showError(message) {
+        errorBox.hidden = !message;
+        errorBox.textContent = message || '';
+    }
+
+    api('/api/user').then(user => {
+        fields.name.value = user.name || '';
+        fields.email.value = user.email || '';
+        paint(user);
+    }).catch(e => showError(e.message));
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const name = fields.name.value.trim();
+        const email = fields.email.value.trim();
+        const password = fields.password.value;
+
+        if (!name || !email) return showError('Ism va emailni kiriting');
+        if (password && password.length < 6) return showError("Parol kamida 6 ta belgidan iborat bo'lishi kerak");
+        if (password !== fields.passwordConfirm.value) return showError('Parollar bir xil emas');
+
+        showError('');
+        saveBtn.disabled = true;
+        try {
+            const result = await api('/api/user/update', {
+                method: 'PUT',
+                body: JSON.stringify({ name, email, password: password || null }),
+            });
+            fields.password.value = '';
+            fields.passwordConfirm.value = '';
+            if (result.user) paint(result.user);
+            toast(result.message || 'Saqlandi');
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            saveBtn.disabled = false;
+        }
     });
-
-    if (!response.ok) {
-        localStorage.removeItem('token');
-        window.location.href = "/login";
-        return;
-    }
-
-    const user = await response.json();
-
-    document.getElementById('name').value = user.name;
-    document.getElementById('email').value = user.email;
-    document.getElementById('avatarLetter').innerText =
-        user.name.charAt(0).toUpperCase();
-});
-
-
-document.getElementById('profileForm')
-.addEventListener('submit', async function(e){
-
-    e.preventDefault();
-
-    const token = localStorage.getItem('token');
-
-    const name = document.getElementById('name').value;
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-
-    const response = await fetch('/api/user/update', {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({ name, email, password })
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        document.getElementById('message').innerHTML =
-            `<span style="color:red">${result.message ?? 'Xatolik'}</span>`;
-        return;
-    }
-
-    document.getElementById('message').innerHTML =
-        `<span style="color:green">${result.message}</span>`;
-
-});
-    
-
-function logout() {
-    localStorage.removeItem('token');
-    window.location.href = "/";
-}
+})();
 </script>
-
-
-</body>
-</html>
+@endpush

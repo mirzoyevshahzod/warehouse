@@ -3,193 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tizimga Kirish - DataScraper</title>
-
+    <title>Tizimga kirish · DataScraper</title>
+    <script>
+        try { const t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('css/ui.css') }}?v={{ filemtime(public_path('css/ui.css')) }}">
     <style>
-        :root {
-            --primary: #0066ff;
-            --secondary: #00d4ff;
-            --dark: #1a1a2e;
-            --light: #f8f9fa;
-            --text-light: #718096;
-            --border-radius: 16px;
-            --transition: all 0.3s ease;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: grid;
+            place-items: center;
+            padding: 24px 16px;
+            background:
+                radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 60%),
+                radial-gradient(900px 500px at 110% 110%, color-mix(in srgb, #3b82f6 14%, transparent), transparent 60%),
+                var(--bg);
         }
-
-        .login-container {
-            width: 100%;
-            max-width: 420px;
-            background: white;
-            padding: 40px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-            animation: fadeIn 0.4s ease;
-        }
-
-        .login-logo {
-            text-align: center;
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin-bottom: 30px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .login-container h2 {
-            text-align: center;
-            margin-bottom: 25px;
-            color: var(--dark);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-            display: block;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 12px 15px;
-            border-radius: 10px;
-            border: 2px solid #e2e8f0;
-            font-size: 0.95rem;
-            transition: var(--transition);
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 12px;
-            border-radius: 50px;
-            border: none;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            transition: var(--transition);
-        }
-
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 102, 255, 0.3);
-        }
-
-        .extra-links {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.9rem;
-        }
-
-        .extra-links a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-
-        .extra-links a:hover {
-            text-decoration: underline;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @media (max-width: 480px) {
-            .login-container {
-                margin: 20px;
-                padding: 30px 20px;
-            }
-        }
+        .login { width: 100%; max-width: 400px; }
+        .login-brand { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 1.2rem; margin-bottom: 24px; }
+        .login-brand .brand-mark { width: 38px; height: 38px; border-radius: 11px; }
+        .login-card { padding: 28px; }
+        .login-card h1 { font-size: 1.35rem; font-weight: 700; }
+        .login-card > p { color: var(--text-2); margin: 4px 0 22px; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: .84rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+        .field .input { height: 42px; }
+        .password { position: relative; }
+        .password .input { padding-right: 44px; }
+        .password button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border: none; background: none; color: var(--muted); cursor: pointer; border-radius: 6px; display: grid; place-items: center; }
+        .password button:hover { color: var(--text); background: var(--surface-3); }
+        .login-card .btn-primary { width: 100%; height: 42px; margin-top: 6px; }
+        .login-error { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--danger-soft); color: var(--danger); font-size: .88rem; margin-bottom: 14px; }
+        .login-foot { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 18px; }
+        .theme-btn { position: fixed; top: 16px; right: 16px; }
     </style>
 </head>
 <body>
+@include('partials.icons')
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+        <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+        <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
+    </defs>
+</svg>
 
-<div class="login-container">
-    <h2>Tizimga Kirish</h2>
+<button type="button" class="btn btn-ghost btn-icon theme-btn" id="themeToggle" aria-label="Rejimni almashtirish"></button>
 
-    <form id="loginForm">
-        <!-- Laravel bo‘lsa -->
-        <!-- @csrf -->
-
-        <div class="form-group">
-            <label>Email manzil</label>
-            <input type="email" name="email" placeholder="email@example.com" required>
-        </div>
-
-        <div class="form-group">
-            <label>Parol</label>
-            <input type="password" name="password" placeholder="********" required>
-        </div>
-
-        <button type="submit" class="btn-login">
-            Kirish
-        </button>
-    </form>
-
-    <div class="extra">
-        Bosh Sahifaga Qaytmoqchimisiz? <a href="/">Bosh Sahifa</a>
+<main class="login">
+    <div class="login-brand">
+        <span class="brand-mark"><svg class="icon"><use href="#i-layers"/></svg></span>
+        DataScraper
     </div>
-</div>
+
+    <div class="card login-card">
+        <h1>Tizimga kirish</h1>
+        <p>Davom etish uchun hisobingizga kiring</p>
+
+        <div class="login-error" id="loginError" role="alert" hidden>
+            <svg class="icon icon-sm"><use href="#i-alert"/></svg>
+            <span></span>
+        </div>
+
+        <form id="loginForm" novalidate>
+            <div class="field">
+                <label for="email">Email</label>
+                <input class="input" type="email" id="email" name="email" placeholder="email@example.com" autocomplete="username" required autofocus>
+            </div>
+            <div class="field">
+                <label for="password">Parol</label>
+                <div class="password">
+                    <input class="input" type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+                    <button type="button" id="togglePassword" aria-label="Parolni ko'rsatish"><svg class="icon icon-sm"><use href="#i-eye"/></svg></button>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="loginBtn">Kirish</button>
+        </form>
+    </div>
+
+    <div class="login-foot">&copy; {{ date('Y') }} DataScraper</div>
+</main>
+
 <script>
-document.getElementById('loginForm').addEventListener('submit', async function(e){
-    e.preventDefault();
+(function () {
+    const form = document.getElementById('loginForm');
+    const errorBox = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    const passwordInput = document.getElementById('password');
 
-    const email = document.querySelector('[name="email"]').value;
-    const password = document.querySelector('[name="password"]').value;
-
-    const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-    });
-
-    const result = await response.json();
-    if(!response.ok){
-        alert(result.message);
-        return;
+    // allaqachon kirgan bo'lsa — to'g'ridan-to'g'ri dashboard'ga
+    const saved = localStorage.getItem('token');
+    if (saved) {
+        fetch('/api/user', { headers: { 'Authorization': `Bearer ${saved}`, 'Accept': 'application/json' } })
+            .then(r => { if (r.ok) window.location.href = '/dashboard'; else localStorage.removeItem('token'); })
+            .catch(() => {});
     }
 
-    // Token saqlaymiz
-    localStorage.setItem('token', result.token);
+    // yorug' / qorong'i rejim
+    const themeBtn = document.getElementById('themeToggle');
+    const isDark = () => (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+    const paintTheme = () => { themeBtn.innerHTML = `<svg class="icon"><use href="#i-${isDark() ? 'sun' : 'moon'}"/></svg>`; };
+    themeBtn.addEventListener('click', () => {
+        const next = isDark() ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        paintTheme();
+    });
+    paintTheme();
 
-    window.location.href = "/dashboard";
-});
+    document.getElementById('togglePassword').addEventListener('click', e => {
+        const show = passwordInput.type === 'password';
+        passwordInput.type = show ? 'text' : 'password';
+        e.currentTarget.innerHTML = `<svg class="icon icon-sm"><use href="#i-${show ? 'eye-off' : 'eye'}"/></svg>`;
+        e.currentTarget.setAttribute('aria-label', show ? 'Parolni yashirish' : "Parolni ko'rsatish");
+    });
+
+    function showError(message) {
+        errorBox.hidden = !message;
+        errorBox.querySelector('span').textContent = message || '';
+    }
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const email = document.getElementById('email').value.trim();
+        const password = passwordInput.value;
+        if (!email || !password) return showError('Email va parolni kiriting');
+
+        showError('');
+        btn.disabled = true;
+        btn.textContent = 'Kirilmoqda...';
+
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.token) {
+                showError(result.message || "Email yoki parol noto'g'ri");
+                return;
+            }
+            localStorage.setItem('token', result.token);
+            window.location.href = '/dashboard';
+        } catch (err) {
+            showError("Server bilan bog'lanishda xatolik");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Kirish';
+        }
+    });
+})();
 </script>
-
 </body>
 </html>
