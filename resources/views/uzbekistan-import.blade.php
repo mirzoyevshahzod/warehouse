@@ -1,678 +1,447 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $dataset === 'export' ? "O'zbekiston Eksport" : "O'zbekiston Import" }}</title>
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
-    <style>
-        /* ===== Faqat shu sahifa uchun ===== */
-        .main-content { min-width: 0; }
+@extends('layouts.app')
 
-        .btn-filter {
-            background: white;
-            color: #1976D2;
-            border: 2px solid #1976D2;
-        }
-        .btn-filter.active {
-            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-            color: white;
-        }
-        .btn-light {
-            background: white;
-            color: #424242;
-            border: 2px solid #e0e0e0;
-        }
-        .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-        .btn .badge {
-            background: #ff6b6b;
-            color: white;
-            border-radius: 10px;
-            padding: 0 7px;
-            font-size: .8rem;
-        }
+@section('title', $dataset === 'export' ? "O'zbekiston eksport" : "O'zbekiston import")
 
-        /* Asosiy filtrlar (tepadagi) */
-        .main-filter {
-            cursor: pointer;
-            user-select: none;
-            justify-content: space-between;
-        }
-        .main-filter .value {
-            flex: 1;
-            color: #999;
-            font-size: .95rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .main-filter.has-value { border-color: #2196F3; background: #e3f2fd; }
-        .main-filter.has-value .value { color: #1a237e; font-weight: 600; }
-        .main-filter .clear {
-            color: #999;
-            font-size: 1.1rem;
-            line-height: 1;
-            padding: 0 2px;
-            display: none;
-        }
-        .main-filter.has-value .clear { display: inline; }
-        .main-filter .clear:hover { color: #c62828; }
+@push('styles')
+<style>
+    /* ===== O'zbekiston import / eksport sahifasi (ranglar — ui.css tokenlari) ===== */
 
-        .filters-bar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 18px;
-            font-size: .9rem;
-            color: #616161;
-        }
-        .chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #e3f2fd;
-            color: #1565C0;
-            border-radius: 16px;
-            padding: 4px 10px;
-            font-weight: 600;
-            font-size: .85rem;
-        }
-        .chip button {
-            border: none;
-            background: none;
-            color: #1565C0;
-            cursor: pointer;
-            font-size: 1rem;
-            line-height: 1;
-        }
-        .link-btn {
-            border: none;
-            background: none;
-            color: #c62828;
-            cursor: pointer;
-            font-weight: 600;
-        }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn .count-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: var(--on-primary);
+        font-size: .72rem;
+        display: inline-grid;
+        place-items: center;
+    }
+    .btn.toggle-on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-text); }
 
-        /* Jarayonlar (import/export progress) */
-        .tasks-section {
-            background: white;
-            padding: 20px 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        }
-        .tasks-section h3 {
-            font-size: 1rem;
-            color: #1a237e;
-            margin: 0;
-        }
-        .tasks-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .btn-outline {
-            padding: 5px 12px;
-            font-size: .82rem;
-            border-radius: 6px;
-            border: 1px solid #1976D2;
-            background: white;
-            color: #1976D2;
-            cursor: pointer;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .btn-outline:hover { background: #e3f2fd; }
-        .btn-outline:disabled { opacity: .6; cursor: wait; }
-        #tasksList.expanded { max-height: 420px; overflow-y: auto; padding-right: 4px; }
-        .tasks-more { text-align: center; padding-top: 8px; }
-        .task {
-            display: grid;
-            grid-template-columns: 28px minmax(0, 340px) 1fr 130px;
-            gap: 14px;
-            align-items: center;
-            padding: 10px 0;
-            border-top: 1px solid #f0f0f0;
-        }
-        .task:first-of-type { border-top: none; }
-        .task .icon { font-size: 1.3rem; text-align: center; }
-        .task .name { font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .task .meta { font-size: .8rem; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .task .error { font-size: .8rem; color: #c62828; white-space: normal; }
-        .progress {
-            height: 10px;
-            background: #eceff1;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 100%;
-            width: 0;
-            background: linear-gradient(90deg, #2196F3, #1976D2);
-            border-radius: 5px;
-            transition: width .4s ease;
-        }
-        .progress-bar.indeterminate {
-            width: 30% !important;
-            animation: indeterminate 1.2s infinite ease-in-out;
-        }
-        .progress-bar.completed { background: linear-gradient(90deg, #4CAF50, #388E3C); }
-        .progress-bar.failed { background: #e57373; }
-        @keyframes indeterminate {
-            0% { margin-left: -30%; }
-            100% { margin-left: 100%; }
-        }
-        .progress-text { font-size: .8rem; color: #616161; margin-top: 4px; display: flex; justify-content: space-between; }
-        .task .actions { display: flex; gap: 8px; align-items: center; }
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: .85rem;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
-            color: white;
-        }
+    /* Asosiy filtrlar (tepada) */
+    .filters-card { padding: 16px 20px; margin-bottom: 16px; }
+    .main-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .main-filter-box { min-width: 0; }
+    .main-filter-box label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .main-filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 10px;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        cursor: pointer;
+        user-select: none;
+        transition: border-color .15s, background .15s;
+    }
+    .main-filter:hover { border-color: var(--primary); }
+    .main-filter .icon { color: var(--muted); }
+    .main-filter .value { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .main-filter.has-value { border-color: var(--primary); background: var(--primary-soft); }
+    .main-filter.has-value .value { color: var(--primary-text); font-weight: 600; }
+    .main-filter .clear { color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; display: none; }
+    .main-filter.has-value .clear { display: inline; }
+    .main-filter .clear:hover { color: var(--danger); }
 
-        /* Jadval */
-        .table-wrapper { max-height: 70vh; overflow: auto; }
-        thead th {
-            position: sticky;
-            top: 0;
-            background: #1976D2;
-            z-index: 2;
-            white-space: nowrap;
-        }
-        th .th-inner { display: flex; align-items: center; gap: 6px; }
-        th .sort-mark { font-size: .75rem; opacity: .9; }
-        .filter-btn {
-            display: none;
-            border: 1px solid rgba(255,255,255,.6);
-            background: rgba(255,255,255,.15);
-            color: white;
-            border-radius: 4px;
-            width: 22px;
-            height: 20px;
-            cursor: pointer;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            flex-shrink: 0;
-        }
-        .filter-mode .filter-btn, .filter-btn.active { display: inline-flex; }
-        .filter-btn.active { background: #FFC107; border-color: #FFC107; color: #1a237e; }
-        .filter-btn svg { width: 12px; height: 12px; }
-        td { white-space: nowrap; }
-        td.num { text-align: right; font-variant-numeric: tabular-nums; }
-        td.long { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
-        td .empty { color: #bbb; }
-        .loading-row td { text-align: center; padding: 30px; color: #999; }
+    .filters-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; font-size: .85rem; color: var(--text-2); }
+    .filters-bar .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--primary-soft);
+        color: var(--primary-text);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-weight: 600;
+        font-size: .82rem;
+    }
+    .filters-bar .chip button { border: none; background: none; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
+    .link-btn { border: none; background: none; color: var(--danger); cursor: pointer; font-weight: 600; }
 
-        .table-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .table-footer select { border: 1px solid #ddd; border-radius: 6px; padding: 4px 8px; }
+    /* Jarayonlar (import/export progress) */
+    .tasks-section { padding: 14px 20px; margin-bottom: 16px; }
+    .tasks-section h3 { font-size: .95rem; font-weight: 600; }
+    .tasks-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .btn-outline {
+        height: 30px;
+        padding: 0 12px;
+        font-size: .82rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .btn-outline:hover { background: var(--surface-3); }
+    .btn-outline:disabled { opacity: .6; cursor: wait; }
+    #tasksList.expanded { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+    .tasks-more { text-align: center; padding-top: 8px; }
+    .task {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 340px) 1fr 130px;
+        gap: 14px;
+        align-items: center;
+        padding: 10px 0;
+        border-top: 1px solid var(--border);
+    }
+    .task:first-of-type { border-top: none; }
+    .task .task-icon { font-size: 1.3rem; text-align: center; }
+    .task .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task .meta { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task .error { font-size: .8rem; color: var(--danger); white-space: normal; }
+    .task .actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+    .progress { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0; background: var(--primary); border-radius: 4px; transition: width .4s ease; }
+    .progress-bar.indeterminate { width: 30% !important; animation: indeterminate 1.2s infinite ease-in-out; }
+    .progress-bar.completed { background: var(--success); }
+    .progress-bar.failed { background: var(--danger); }
+    @keyframes indeterminate { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+    .progress-text { font-size: .8rem; color: var(--text-2); margin-top: 4px; display: flex; justify-content: space-between; }
 
-        /* Ochiladigan oyna (filtr / ustunlar) */
-        .popup {
-            position: fixed;
-            z-index: 2000;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            width: 340px;
-            max-width: calc(100vw - 20px);
-            font-size: .9rem;
-            color: #333;
-            display: flex;
-            flex-direction: column;
-            max-height: min(640px, calc(100vh - 20px));
-        }
-        .popup-title {
-            padding: 12px 15px;
-            font-weight: 700;
-            color: #1a237e;
-            border-bottom: 1px solid #eee;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .popup-body { padding: 10px 15px; overflow-y: auto; flex: 1; }
-        .popup-footer {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 10px 15px;
-            border-top: 1px solid #eee;
-        }
-        .popup-footer .right { display: flex; gap: 8px; }
-        .popup button.p-btn {
-            border-radius: 6px;
-            padding: 7px 14px;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid #ddd;
-            background: white;
-            color: #424242;
-        }
-        .popup button.p-btn.primary { background: #1976D2; border-color: #1976D2; color: white; }
-        .popup button.p-btn.danger { color: #c62828; border-color: transparent; padding-left: 0; }
-        .sort-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
-        .sort-row button {
-            text-align: left;
-            border: none;
-            background: none;
-            padding: 6px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            color: #333;
-        }
-        .sort-row button:hover { background: #f3f6ff; }
-        .sort-row button.active { background: #e3f2fd; color: #1565C0; font-weight: 600; }
-        .p-section-title {
-            font-weight: 700;
-            font-size: .8rem;
-            color: #757575;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            margin: 10px 0 6px;
-        }
-        .cond-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
-        .cond-row select, .cond-row input, .p-search {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 6px 8px;
-            font-size: .85rem;
-            outline: none;
-            min-width: 0;
-        }
-        .cond-row select { flex: 1 1 130px; }
-        .cond-row input { flex: 1 1 100px; }
-        .cond-row select:focus, .cond-row input:focus, .p-search:focus { border-color: #2196F3; }
-        .logic-row { display: flex; gap: 14px; margin: 4px 0 8px; font-size: .85rem; }
-        .p-search { width: 100%; margin-bottom: 6px; }
-        .values-list {
-            border: 1px solid #eee;
-            border-radius: 6px;
-            max-height: 240px;
-            overflow-y: auto;
-            padding: 4px 0;
-        }
-        .values-list label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 10px;
-            cursor: pointer;
-        }
-        .values-list label:hover { background: #f5f5f5; }
-        .values-list label .v { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .values-list label .c { color: #9e9e9e; font-size: .8rem; }
-        .values-list .special { font-style: italic; }
-        .values-note { color: #9e9e9e; font-size: .8rem; padding: 6px 10px; }
-        .columns-popup .values-list { max-height: 380px; }
-        .columns-popup .quick { display: flex; gap: 8px; margin-bottom: 8px; }
-        .columns-popup .quick button { flex: 1; }
+    /* Jadval */
+    .table-card { overflow: hidden; }
+    .table-wrapper { max-height: 70vh; overflow: auto; }
+    .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .86rem; }
+    .data-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--surface-2);
+        color: var(--text-2);
+        font-weight: 600;
+        font-size: .78rem;
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .data-table tbody tr:hover td { background: var(--surface-2); }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .data-table td.long { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+    .data-table td .nil { color: var(--muted); }
+    .loading-row td { text-align: center; padding: 40px; color: var(--muted); }
+    th .th-inner { display: flex; align-items: center; gap: 6px; }
+    th .sort-mark { font-size: .72rem; color: var(--primary-text); }
+    .filter-btn {
+        display: none;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--muted);
+        border-radius: 5px;
+        width: 22px;
+        height: 20px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        flex-shrink: 0;
+    }
+    .filter-btn:hover { color: var(--primary-text); border-color: var(--primary); }
+    .filter-mode .filter-btn, .filter-btn.active { display: inline-flex; }
+    .filter-btn.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+    .filter-btn svg { width: 11px; height: 11px; }
 
-        /* Firmalar */
-        .btn-firms {
-            background: linear-gradient(135deg, #26A69A 0%, #00796B 100%);
-            color: white;
-        }
-        .popup.modal.firms-modal { width: 900px; height: min(780px, calc(100vh - 20px)); }
-        .btn-firms .badge { background: rgba(255, 255, 255, 0.25); }
-        .firms-modal .popup-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .firms-modal .popup-title .close {
-            border: none;
-            background: none;
-            font-size: 1.4rem;
-            line-height: 1;
-            color: #9e9e9e;
-            cursor: pointer;
-        }
-        .firms-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-        .firms-summary .stat {
-            background: #f5f8ff;
-            border: 1px solid #e3f2fd;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: .82rem;
-            color: #616161;
-        }
-        .firms-summary .stat strong { display: block; font-size: 1.05rem; color: #1a237e; }
-        .firms-note { font-size: .8rem; color: #e65100; margin-bottom: 8px; }
-        .firms-totals { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .firms-totals .stat {
-            flex: 1 1 140px;
-            background: #e0f2f1;
-            border: 1px solid #b2dfdb;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: .8rem;
-            color: #00695c;
-        }
-        .firms-totals .stat strong { display: block; font-size: 1.25rem; color: #004d40; }
-        .firms-totals .stat.main { background: #00796B; border-color: #00796B; color: #e0f2f1; }
-        .firms-totals .stat.main strong { color: white; }
-        .firms-modal .firm-tabs { margin-bottom: 10px; }
-        .also-chip {
-            display: inline-block;
-            background: #fff3e0;
-            color: #e65100;
-            border-radius: 10px;
-            padding: 0 8px;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .also-chip:hover { background: #ffe0b2; }
-        .firm-card {
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 10px 12px;
-            margin-bottom: 8px;
-            display: grid;
-            grid-template-columns: 34px minmax(0, 1fr) auto;
-            gap: 4px 10px;
-        }
-        .firm-card .rank {
-            grid-row: span 2;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #e0f2f1;
-            color: #00695c;
-            font-weight: 700;
-            font-size: .8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .firm-card .title { font-weight: 700; color: #1a237e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .firm-card .side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; grid-column: 3; grid-row: 1 / span 3; }
-        .firm-card .rows { font-weight: 700; color: #00796B; white-space: nowrap; text-align: right; }
-        .firm-card .sub { font-size: .8rem; color: #757575; grid-column: 2; }
-        .firm-card .info { grid-column: 2; font-size: .84rem; color: #424242; display: flex; flex-direction: column; gap: 3px; }
-        .firm-card .line { display: flex; gap: 6px; align-items: baseline; }
-        .firm-card .line > span:first-child { flex: none; width: 18px; text-align: center; }
-        .firm-card .contact strong { color: #2e7d32; }
-        .firm-card .muted { color: #9e9e9e; font-style: italic; }
-        .chip {
-            display: inline-block;
-            background: #f1f3f4;
-            border-radius: 10px;
-            padding: 1px 8px;
-            margin: 0 4px 2px 0;
-            font-size: .78rem;
-        }
-        .firms-more { text-align: center; padding: 6px 0 2px; }
+    .table-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+        color: var(--text-2);
+        font-size: .88rem;
+    }
+    .table-footer select { height: 30px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 8px; background: var(--surface); }
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 4px; flex-wrap: wrap; padding: 16px 0 4px; }
+    .page-btn {
+        min-width: 34px;
+        height: 34px;
+        padding: 0 8px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .page-btn:hover { border-color: var(--primary); color: var(--primary-text); }
+    .page-btn.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+    .page-gap { color: var(--muted); padding: 0 4px; }
 
-        /* Xodim qo'shish (eksport) */
-        .btn-contact {
-            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-            color: white;
-        }
-        .modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(26, 35, 126, 0.35);
-            z-index: 3000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-        }
-        .popup.modal {
-            position: relative;
-            width: 600px;
-            max-height: calc(100vh - 20px);
-        }
-        .modal .values-list { max-height: 260px; padding: 0; }
-        .firm-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
-        .firm-tab {
-            flex: 1;
-            border: 1px solid #ddd;
-            background: #fafafa;
-            border-radius: 6px;
-            padding: 7px 10px;
-            font-size: .85rem;
-            font-weight: 600;
-            color: #616161;
-            cursor: pointer;
-        }
-        .firm-tab .count {
-            display: inline-block;
-            min-width: 22px;
-            margin-left: 4px;
-            padding: 0 6px;
-            border-radius: 10px;
-            background: #e0e0e0;
-            font-size: .75rem;
-        }
-        .firm-tab.active { border-color: #1976D2; background: #e3f2fd; color: #1a237e; }
-        .firm-tab.active .count { background: #1976D2; color: white; }
-        .firm-tab[data-tab="with"].active { border-color: #2e7d32; background: #e8f5e9; color: #1b5e20; }
-        .firm-tab[data-tab="with"].active .count { background: #2e7d32; }
-        .firm-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid #f3f3f3;
-        }
-        .firm-item:last-child { border-bottom: none; }
-        .firm-item:hover { background: #f5f5f5; }
-        .firm-item.selected { background: #e3f2fd; box-shadow: inset 3px 0 0 #1976D2; }
-        .firm-item .firm-name { font-weight: 600; color: #1a237e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .firm-item .firm-meta { font-size: .8rem; color: #757575; }
-        .firm-item .firm-contact { font-size: .8rem; color: #2e7d32; font-weight: 600; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .form-field { display: flex; flex-direction: column; gap: 4px; }
-        .form-field.wide { grid-column: 1 / -1; }
-        .form-field label { font-size: .8rem; font-weight: 700; color: #616161; }
-        .form-field input {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 8px 10px;
-            font-size: .9rem;
-            outline: none;
-        }
-        .form-field input:focus { border-color: #2196F3; box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1); }
-        .selected-firm {
-            background: #f5f8ff;
-            border: 1px solid #e3f2fd;
-            border-radius: 6px;
-            padding: 8px 10px;
-            margin: 10px 0;
-            font-size: .85rem;
-            color: #424242;
-        }
-        .form-error { color: #c62828; font-size: .85rem; margin-top: 8px; }
-        .toast {
-            position: fixed;
-            right: 20px;
-            bottom: 20px;
-            background: #2e7d32;
-            color: white;
-            padding: 12px 18px;
-            border-radius: 8px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-            z-index: 4000;
-            font-weight: 600;
-            animation: fadeIn .3s ease;
-        }
+    /* Ochiladigan oyna (filtr / ustunlar / modal) */
+    .popup {
+        position: fixed;
+        z-index: 2000;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        width: 340px;
+        max-width: calc(100vw - 20px);
+        font-size: .88rem;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        max-height: min(640px, calc(100vh - 20px));
+    }
+    .popup-title { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .popup-body { padding: 10px 16px; overflow-y: auto; flex: 1; }
+    .popup-footer { display: flex; justify-content: space-between; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+    .popup-footer .right { display: flex; gap: 8px; }
+    .popup button.p-btn {
+        height: 34px;
+        border-radius: var(--radius-sm);
+        padding: 0 14px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--text);
+    }
+    .popup button.p-btn:hover { background: var(--surface-3); }
+    .popup button.p-btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+    .popup button.p-btn.danger { color: var(--danger); border-color: transparent; padding-left: 0; background: none; }
+    .sort-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+    .sort-row button { text-align: left; border: none; background: none; padding: 6px 8px; border-radius: 6px; cursor: pointer; color: var(--text); }
+    .sort-row button:hover { background: var(--surface-3); }
+    .sort-row button.active { background: var(--primary-soft); color: var(--primary-text); font-weight: 600; }
+    .p-section-title { font-weight: 700; font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 10px 0 6px; }
+    .cond-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+    .cond-row select, .cond-row input, .p-search {
+        height: 34px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        padding: 0 8px;
+        font-size: .85rem;
+        outline: none;
+        min-width: 0;
+        background: var(--surface);
+    }
+    .cond-row select { flex: 1 1 130px; }
+    .cond-row input { flex: 1 1 100px; }
+    .cond-row select:focus, .cond-row input:focus, .p-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+    .logic-row { display: flex; gap: 14px; margin: 4px 0 8px; font-size: .85rem; }
+    .p-search { width: 100%; margin-bottom: 6px; }
+    .values-list { border: 1px solid var(--border); border-radius: 6px; max-height: 240px; overflow-y: auto; padding: 4px 0; }
+    .values-list label { display: flex; align-items: center; gap: 8px; padding: 4px 10px; cursor: pointer; }
+    .values-list label:hover { background: var(--surface-3); }
+    .values-list label .v { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .values-list label .c { color: var(--muted); font-size: .8rem; }
+    .values-list .special { font-style: italic; }
+    .values-list input[type="checkbox"], .logic-row input { accent-color: var(--primary); }
+    .values-note { color: var(--muted); font-size: .8rem; padding: 6px 10px; }
+    .columns-popup .values-list { max-height: 380px; }
+    .columns-popup .quick { display: flex; gap: 8px; margin-bottom: 8px; }
+    .columns-popup .quick button { flex: 1; }
 
-        @media (max-width: 768px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .firm-card { grid-template-columns: minmax(0, 1fr) auto; }
-            .firm-card .rank { display: none; }
-            .firm-card .side { grid-column: 2; grid-row: 1 / span 2; }
-            .firm-card .sub { grid-column: 1; }
-            .firm-card .info { grid-column: 1 / -1; }
-            .task { grid-template-columns: 28px 1fr; }
-            .task .progress-wrap, .task .actions { grid-column: 1 / -1; }
-        }
-    </style>
-</head>
-<body>
-<!-- Hamburger Menu -->
-<button class="hamburger" id="hamburger">
-    <span></span>
-    <span></span>
-    <span></span>
-</button>
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: var(--overlay);
+        z-index: 3000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+    }
+    .popup.modal { position: relative; width: 600px; max-height: calc(100vh - 20px); }
+    .modal .values-list { max-height: 260px; padding: 0; }
 
-<!-- Sidebar -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">
-            <svg class="menu-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
-            </svg>
-            Dashboard
-        </div>
-    </div>
-    <ul class="sidebar-menu">
-        <li>
-            <a href="{{ route('uzbekistanImport') }}" class="{{ request()->routeIs('uzbekistanImport') ? 'active' : '' }}">
-                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                O'zbekiston Import
-            </a>
-        </li>
-        <li>
-            <a href="{{ route('uzbekistanExport') }}" class="{{ request()->routeIs('uzbekistanExport') ? 'active' : '' }}">
-                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                O'zbekiston Eksport
-            </a>
-        </li>
-        <li>
-            <a href="/dashboard">
-                <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                Bosh Sahifaga Qaytish
-            </a>
-        </li>
-    </ul>
-</aside>
+    /* Firmalar oynasi */
+    .popup.modal.firms-modal { width: 900px; height: min(780px, calc(100vh - 20px)); }
+    .firms-modal .popup-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .firms-modal .popup-title .close { border: none; background: none; font-size: 1.4rem; line-height: 1; color: var(--muted); cursor: pointer; }
+    .firms-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .firms-summary .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; font-size: .8rem; color: var(--text-2); }
+    .firms-summary .stat strong { display: block; font-size: 1.05rem; color: var(--text); }
+    .firms-note { font-size: .8rem; color: var(--warning); margin-bottom: 8px; }
+    .firms-totals { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .firms-totals .stat { flex: 1 1 140px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; font-size: .8rem; color: var(--text-2); }
+    .firms-totals .stat strong { display: block; font-size: 1.25rem; color: var(--text); }
+    .firms-totals .stat.primary { background: var(--primary-soft); border-color: transparent; }
+    .firms-totals .stat.primary strong { color: var(--primary-text); }
+    .firms-modal .firm-tabs { margin-bottom: 10px; }
+    .also-chip { display: inline-block; background: var(--warning-soft); color: var(--warning); border-radius: 10px; padding: 0 8px; font-weight: 600; }
+    .also-chip:hover { text-decoration: none; filter: brightness(.95); }
+    .firm-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        gap: 4px 10px;
+    }
+    .firm-card:hover { border-color: var(--border-strong); }
+    .firm-card .rank {
+        grid-row: span 2;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--primary-soft);
+        color: var(--primary-text);
+        font-weight: 700;
+        font-size: .8rem;
+        display: grid;
+        place-items: center;
+    }
+    .firm-card .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .firm-card .side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; grid-column: 3; grid-row: 1 / span 3; }
+    .firm-card .rows { font-weight: 700; white-space: nowrap; text-align: right; }
+    .firm-card .sub { font-size: .8rem; color: var(--muted); grid-column: 2; }
+    .firm-card .info { grid-column: 2; font-size: .84rem; color: var(--text-2); display: flex; flex-direction: column; gap: 3px; }
+    .firm-card .line { display: flex; gap: 6px; align-items: baseline; }
+    .firm-card .line > span:first-child { flex: none; width: 18px; text-align: center; }
+    .firm-card .contact strong { color: var(--success); }
+    .firm-card .muted { font-style: italic; }
+    .firm-card .chip { display: inline-block; background: var(--surface-3); border-radius: 10px; padding: 1px 8px; margin: 0 4px 2px 0; font-size: .78rem; }
+    .firms-more { text-align: center; padding: 6px 0 2px; }
 
-<!-- Main Content -->
-<div class="main-content">
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
+    /* Xodim qo'shish (eksport) */
+    .firm-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .firm-tab {
+        flex: 1;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        padding: 7px 10px;
+        font-size: .85rem;
+        font-weight: 600;
+        color: var(--text-2);
+        cursor: pointer;
+    }
+    .firm-tab .count { display: inline-block; min-width: 22px; margin-left: 4px; padding: 0 6px; border-radius: 10px; background: var(--surface-3); font-size: .75rem; }
+    .firm-tab.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-text); }
+    .firm-tab.active .count { background: var(--primary); color: var(--on-primary); }
+    .firm-tab[data-tab="with"].active { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+    .firm-tab[data-tab="with"].active .count { background: var(--success); color: var(--surface); }
+    .firm-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .firm-item:last-child { border-bottom: none; }
+    .firm-item:hover { background: var(--surface-3); }
+    .firm-item.selected { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
+    .firm-item .firm-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .firm-item .firm-meta { font-size: .8rem; color: var(--muted); }
+    .firm-item .firm-contact { font-size: .8rem; color: var(--success); font-weight: 600; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-field.wide { grid-column: 1 / -1; }
+    .form-field label { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+    .form-field input { height: 38px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 0 10px; outline: none; background: var(--surface); }
+    .form-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+    .selected-firm { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; margin: 10px 0; font-size: .85rem; color: var(--text-2); }
+    .form-error { color: var(--danger); font-size: .85rem; margin-top: 8px; }
+
+    @media (max-width: 768px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .firm-card { grid-template-columns: minmax(0, 1fr) auto; }
+        .firm-card .rank { display: none; }
+        .firm-card .side { grid-column: 2; grid-row: 1 / span 2; }
+        .firm-card .sub { grid-column: 1; }
+        .firm-card .info { grid-column: 1 / -1; }
+        .task { grid-template-columns: 28px 1fr; }
+        .task .progress-wrap, .task .actions { grid-column: 1 / -1; }
+        .toolbar .btn { flex: 1 1 auto; }
+        .main-filters { grid-template-columns: 1fr 1fr; gap: 10px; }
+    }
+</style>
+@endpush
+
+@section('content')
+    <div class="page-head">
+        <div>
             @if ($dataset === 'export')
-                <h1>O'zbekiston Eksport</h1>
+                <h1>O'zbekiston eksport</h1>
                 <p>O'zbekistondan eksport qilingan tovarlar bo'yicha bojxona ma'lumotlari</p>
             @else
-                <h1>O'zbekiston Import</h1>
+                <h1>O'zbekiston import</h1>
                 <p>Bojxona deklaratsiyalari bo'yicha import ma'lumotlari</p>
             @endif
         </div>
-
-        <!-- Action Buttons -->
-        <div class="button-group">
-            <input type="file" id="fileInput" accept=".xlsx" hidden>
-            <button class="btn btn-upload" id="uploadBtn">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                Fayl Yuklash
-            </button>
-            <button class="btn btn-download" id="exportBtn">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Fayl Yuklab olish
-            </button>
-            <button class="btn btn-filter" id="filterModeBtn" title="Har bir ustun boshida filtr belgisini ko'rsatish (Excel'dagi kabi)">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
-                Filtr
-                <span class="badge" id="filterCount" hidden></span>
-            </button>
-            <button class="btn btn-light" id="columnsBtn">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
-                    <rect x="3" y="3" width="7" height="18"></rect>
-                    <rect x="14" y="3" width="7" height="18"></rect>
-                </svg>
-                Ustunlar
-            </button>
-            <button class="btn btn-firms" id="firmsBtn" title="Takrorlanmas firmalar va ularning kontaktlari">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
-                    <path d="M3 21h18"></path>
-                    <path d="M5 21V7l7-4 7 4v14"></path>
-                    <path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"></path>
-                </svg>
-                Firmalar
-                <span class="badge" id="firmsCount" hidden></span>
-            </button>
-            @if ($dataset === 'export')
-                <button class="btn btn-contact" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
-                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:inherit">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="8.5" cy="7" r="4"></circle>
-                        <line x1="20" y1="8" x2="20" y2="14"></line>
-                        <line x1="23" y1="11" x2="17" y2="11"></line>
-                    </svg>
-                    Xodim qo'shish
-                </button>
-            @endif
-        </div>
-
-        <!-- Import / export jarayonlari -->
-        <div class="tasks-section" id="tasksSection" hidden>
-            <div class="tasks-head">
-                <h3>Import / Export jarayonlari</h3>
-                <button type="button" class="btn-outline" id="tasksToggle" hidden></button>
-            </div>
-            <div id="tasksList"></div>
-        </div>
-
-        <!-- Search Section: asosiy filtrlar -->
-        <div class="search-section">
-            <div class="search-grid" id="mainFilters"></div>
-            <div class="filters-bar" id="filtersBar" hidden></div>
-        </div>
-
-        <!-- Table -->
-        <div class="table-section">
-            <div class="table-wrapper" id="tableWrapper">
-                <table>
-                    <thead><tr id="tableHead"></tr></thead>
-                    <tbody id="tableBody">
-                        <tr class="loading-row"><td>Yuklanmoqda...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="table-footer">
-                <span id="totalText">Jami: <strong>0</strong> ta natija</span>
-                <label>
-                    Sahifada:
-                    <select id="perPage">
-                        <option>30</option>
-                        <option>50</option>
-                        <option>100</option>
-                        <option>200</option>
-                    </select>
-                </label>
-            </div>
-        </div>
-        <div id="pagination" style="padding:15px;text-align:center;"></div>
     </div>
-</div>
 
+    <div class="toolbar" style="margin-bottom:16px">
+        <input type="file" id="fileInput" accept=".xlsx" hidden>
+        <button type="button" class="btn btn-primary" id="uploadBtn">
+            <svg class="icon"><use href="#i-upload"/></svg>
+            Fayl yuklash
+        </button>
+        <button type="button" class="btn btn-secondary" id="exportBtn">
+            <svg class="icon"><use href="#i-download"/></svg>
+            Excel'ga yuklab olish
+        </button>
+        <button type="button" class="btn btn-secondary" id="filterModeBtn" title="Har bir ustun boshida filtr belgisini ko'rsatish (Excel'dagi kabi)">
+            <svg class="icon"><use href="#i-filter"/></svg>
+            Filtr
+            <span class="count-badge" id="filterCount" hidden></span>
+        </button>
+        <button type="button" class="btn btn-secondary" id="columnsBtn">
+            <svg class="icon"><use href="#i-columns"/></svg>
+            Ustunlar
+        </button>
+        <button type="button" class="btn btn-secondary" id="firmsBtn" title="Takrorlanmas firmalar va ularning kontaktlari">
+            <svg class="icon"><use href="#i-building"/></svg>
+            Firmalar
+            <span class="count-badge" id="firmsCount" hidden></span>
+        </button>
+        @if ($dataset === 'export')
+            <button type="button" class="btn btn-secondary" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
+                <svg class="icon"><use href="#i-user-plus"/></svg>
+                Xodim qo'shish
+            </button>
+        @endif
+    </div>
+
+    <!-- Import / export jarayonlari -->
+    <div class="card tasks-section" id="tasksSection" hidden>
+        <div class="tasks-head">
+            <h3>Import / eksport jarayonlari</h3>
+            <button type="button" class="btn-outline" id="tasksToggle" hidden></button>
+        </div>
+        <div id="tasksList"></div>
+    </div>
+
+    <!-- Asosiy filtrlar -->
+    <div class="card filters-card">
+        <div class="main-filters" id="mainFilters"></div>
+        <div class="filters-bar" id="filtersBar" hidden></div>
+    </div>
+
+    <!-- Jadval -->
+    <div class="card table-card table-section">
+        <div class="table-wrapper" id="tableWrapper">
+            <table class="data-table">
+                <thead><tr id="tableHead"></tr></thead>
+                <tbody id="tableBody">
+                    <tr class="loading-row"><td>Yuklanmoqda...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="table-footer">
+            <span id="totalText">Jami: <strong>0</strong> ta natija</span>
+            <label>
+                Sahifada:
+                <select id="perPage">
+                    <option>30</option>
+                    <option>50</option>
+                    <option>100</option>
+                    <option>200</option>
+                </select>
+            </label>
+        </div>
+    </div>
+    <div class="pagination" id="pagination"></div>
+@endsection
+
+@push('scripts')
 <script>
     const token = localStorage.getItem('token');
     if (!token) {
@@ -973,7 +742,7 @@
                 const formatted = formatValue(item[name], col.type);
                 const classes = [col.type === 'number' ? 'num' : '', LONG_COLUMNS.includes(name) ? 'long' : ''].join(' ');
                 return formatted === null
-                    ? `<td class="${classes}"><span class="empty">-</span></td>`
+                    ? `<td class="${classes}"><span class="nil">-</span></td>`
                     : `<td class="${classes}" title="${esc(formatted)}">${esc(formatted)}</td>`;
             }).join('')}</tr>
         `).join('');
@@ -989,29 +758,15 @@
         if (last <= 1) return;
 
         function createButton(page) {
-            return `
-                <button
-                    onclick="goToPage(${page})"
-                    style="
-                        margin:4px;
-                        padding:6px 12px;
-                        border-radius:6px;
-                        border:1px solid #1976D2;
-                        background:${page === current ? '#1976D2' : 'white'};
-                        color:${page === current ? 'white' : '#1976D2'};
-                        cursor:pointer;
-                    ">
-                    ${page}
-                </button>
-            `;
+            return `<button type="button" class="page-btn ${page === current ? 'active' : ''}" onclick="goToPage(${page})">${page}</button>`;
         }
 
         paginationDiv.innerHTML += createButton(1);
-        if (current > 3) paginationDiv.innerHTML += `<span style="margin:0 5px;">...</span>`;
+        if (current > 3) paginationDiv.innerHTML += `<span class="page-gap">…</span>`;
         for (let i = current - 1; i <= current + 1; i++) {
             if (i > 1 && i < last) paginationDiv.innerHTML += createButton(i);
         }
-        if (current < last - 2) paginationDiv.innerHTML += `<span style="margin:0 5px;">...</span>`;
+        if (current < last - 2) paginationDiv.innerHTML += `<span class="page-gap">…</span>`;
         paginationDiv.innerHTML += createButton(last);
     }
 
@@ -1030,13 +785,10 @@
             const col = column(name);
             const text = describeFilter(name);
             return `
-                <div class="search-box">
+                <div class="main-filter-box">
                     <label>${esc(col.label)}</label>
-                    <div class="input-wrapper main-filter ${text ? 'has-value' : ''}" data-column="${esc(name)}">
-                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <path d="m21 21-4.35-4.35"></path>
-                        </svg>
+                    <div class="main-filter ${text ? 'has-value' : ''}" data-column="${esc(name)}">
+                        <svg class="icon icon-sm"><use href="#i-search"/></svg>
                         <span class="value" title="${esc(text || '')}">${esc(text || 'Barchasi')}</span>
                         <span class="clear" title="Tozalash">&times;</span>
                     </div>
@@ -1102,7 +854,7 @@
         renderHead();
         renderMainFilters();
         renderFiltersBar();
-        document.getElementById('filterModeBtn').classList.toggle('active', state.filterMode);
+        document.getElementById('filterModeBtn').classList.toggle('toggle-on', state.filterMode);
     }
 
     // ================= Ochiladigan oynalar =================
@@ -1417,7 +1169,7 @@
                 <div class="values-list"></div>
             </div>
             <div class="popup-footer">
-                <span style="color:#757575;align-self:center" class="count"></span>
+                <span style="color:var(--muted);align-self:center" class="count"></span>
                 <div class="right">
                     <button class="p-btn" data-action="cancel">Bekor qilish</button>
                     <button class="p-btn primary" data-action="ok">OK</button>
@@ -1519,7 +1271,7 @@
         if (uploadProgress) {
             html += `
                 <div class="task">
-                    <div class="icon">⬆️</div>
+                    <div class="task-icon">⬆️</div>
                     <div>
                         <div class="name" title="${esc(uploadProgress.name)}">${esc(uploadProgress.name)}</div>
                         <div class="meta">Fayl serverga yuborilmoqda</div>
@@ -1546,7 +1298,7 @@
 
             return `
                 <div class="task">
-                    <div class="icon">${isImport ? '📥' : '📤'}</div>
+                    <div class="task-icon">${isImport ? '📥' : '📤'}</div>
                     <div style="min-width:0">
                         <div class="name" title="${esc(t.original_name || '')}">${isImport ? 'Yuklash' : 'Yuklab olish'} · ${DATASET_LABEL[dataset]} ma'lumotlari</div>
                         <div class="meta" title="${esc(t.original_name || '')}">${esc(t.original_name || '')}</div>
@@ -1565,7 +1317,7 @@
                         ${waitingLong ? `<div class="error">Navbatda uzoq turibdi — queue worker ishlayotganini tekshiring</div>` : ''}
                     </div>
                     <div class="actions">
-                        ${!isImport && t.status === 'completed' ? `<button class="btn-sm" data-download="${t.id}">Yuklab olish</button>` : ''}
+                        ${!isImport && t.status === 'completed' ? `<button class="btn btn-secondary btn-sm" data-download="${t.id}">Yuklab olish</button>` : ''}
                     </div>
                 </div>`;
         }).join('');
@@ -1817,7 +1569,7 @@
             modal.querySelector('.firms-totals').innerHTML = `
                 <div class="stat"><strong>${numberFormat.format(totals.import.total)}</strong>import firmalar</div>
                 <div class="stat"><strong>${numberFormat.format(totals.export.total)}</strong>eksport firmalar</div>
-                <div class="stat main"><strong>${numberFormat.format(totals.unique_total)}</strong>jami takrorlanmas firma</div>
+                <div class="stat primary"><strong>${numberFormat.format(totals.unique_total)}</strong>jami takrorlanmas firma</div>
                 <div class="stat"><strong>${numberFormat.format(totals.both)}</strong>ham import, ham eksport qilgan</div>`;
             modal.querySelectorAll('.firm-tab').forEach(btn => {
                 btn.querySelector('.count').textContent = numberFormat.format(totals[btn.dataset.dataset].total);
@@ -1957,11 +1709,7 @@
     // ================= Xodim qo'shish (faqat eksport) =================
 
     function toast(message) {
-        const el = document.createElement('div');
-        el.className = 'toast';
-        el.textContent = message;
-        document.body.appendChild(el);
-        setTimeout(() => el.remove(), 3500);
+        App.toast(message);
     }
 
     /**
@@ -2190,24 +1938,6 @@
         loadData();
     });
 
-    // Hamburger menu toggle
-    const hamburger = document.getElementById('hamburger');
-    const sidebar = document.getElementById('sidebar');
-
-    hamburger.addEventListener('click', function () {
-        hamburger.classList.toggle('active');
-        sidebar.classList.toggle('active');
-    });
-
-    document.querySelectorAll('.sidebar-menu a').forEach(link => {
-        link.addEventListener('click', function () {
-            if (window.innerWidth <= 768) {
-                hamburger.classList.remove('active');
-                sidebar.classList.remove('active');
-            }
-        });
-    });
-
     // ================= Boshlash =================
 
     (async function init() {
@@ -2241,5 +1971,4 @@
         }
     })();
 </script>
-</body>
-</html>
+@endpush

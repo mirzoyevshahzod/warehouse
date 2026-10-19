@@ -134,6 +134,7 @@
 
 /* ===== Asos ===== */
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
     margin: 0;
@@ -453,7 +454,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ===== Toast ===== */
-.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 4000; display: flex; flex-direction: column; gap: 8px; }
 .toast {
     display: flex;
     align-items: center;
