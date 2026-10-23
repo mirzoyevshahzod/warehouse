@@ -50,7 +50,7 @@ class ZanjeerExportTest extends TestCase
         // boshqa kun — alohida qator (eng yangi sana birinchi chiqadi)
         $this->importRow(['item_no' => '4', 'date' => '2026-08-30', 'registration_date' => '2026-08-30']);
 
-        $rows = $this->export('import', ['scope' => 'all']);
+        $rows = $this->export('import', ['scope' => 'all', 'merge' => true]);
 
         $this->assertSame(array_values(ZanjeerExport::IMPORT_COLUMNS), $rows[0]);
         $this->assertCount(25, $rows[0]);
@@ -85,13 +85,34 @@ class ZanjeerExportTest extends TestCase
         $this->assertSame('2026-08-30', $rows[3][array_search('Дата', $rows[0])]);
     }
 
+    public function test_by_default_every_row_is_exported_separately(): void
+    {
+        // bitta mashina, bitta kun — lekin birlashtirilmaydi
+        $this->importRow(['item_no' => '1', 'hs_code' => '1701991009', 'gross_weight_kg' => 20000, 'customs_amount_usd' => 1000.5]);
+        $this->importRow(['item_no' => '2', 'hs_code' => '1701140000', 'gross_weight_kg' => 25000, 'customs_amount_usd' => 2000.25]);
+        $this->importRow(['item_no' => '3', 'vehicle_number' => '01A777AA', 'trailer_number' => null]);
+
+        $rows = $this->export('import', ['scope' => 'all']);
+
+        $this->assertCount(4, $rows); // sarlavha + 3 qator — manbadagi qatorlar soni bilan bir xil
+        $lines = collect(array_slice($rows, 1))->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r));
+        $this->assertSame([1, 1, 1], $lines->pluck('items_count')->all());
+        $this->assertEqualsCanonicalizing(['1701991009', '1701140000', '1701991009'], $lines->pluck('hs_code')->all());
+        $this->assertEqualsCanonicalizing([20.0, 25.0, 1.0], $lines->pluck('tonnage')->map(fn ($t) => (float) $t)->all());
+
+        // eksport ham
+        $this->exportRow(['net_weight_kg' => 500]);
+        $this->exportRow(['net_weight_kg' => 1500]);
+        $this->assertCount(3, $this->export('export', ['scope' => 'all']));
+    }
+
     public function test_import_without_vehicle_groups_by_declaration(): void
     {
         $this->importRow(['item_no' => '1', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0001']);
         $this->importRow(['item_no' => '2', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0001']);
         $this->importRow(['item_no' => '1', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0002']);
 
-        $rows = $this->export('import', ['scope' => 'all']);
+        $rows = $this->export('import', ['scope' => 'all', 'merge' => true]);
 
         $this->assertCount(3, $rows); // ikkita yuk (ГТД) — ikkita qator
         $counts = [$rows[1][22], $rows[2][22]]; // "Товарных позиций"
@@ -108,7 +129,7 @@ class ZanjeerExportTest extends TestCase
             'responsible_person_name' => 'Karimov Aziz', 'responsible_person_phone' => '+998901234567',
         ]);
 
-        $rows = $this->export('export', ['scope' => 'all']);
+        $rows = $this->export('export', ['scope' => 'all', 'merge' => true]);
 
         $this->assertSame(array_values(ZanjeerExport::EXPORT_COLUMNS), $rows[0]);
         $this->assertCount(3, $rows);

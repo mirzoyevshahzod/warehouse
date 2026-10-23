@@ -17,7 +17,8 @@ use PDO;
 /**
  * O'zbekiston savdo ma'lumotlarini Zanjeer saytiga yuklash formatida (uz_import_*.xlsx / uz_export_*.xlsx) yozadi.
  *
- * Format uz-trade-scraper loyihasidagi bilan bir xil:
+ * Ustunlar uz-trade-scraper loyihasidagi bilan bir xil. Standart holatda har bir tovar qatori alohida
+ * yoziladi ("Товарных позиций" = 1). $merge = true bo'lsa — o'sha loyihadagidek birlashtiriladi:
  *   1 qator = bitta O'zbek kompaniyasi (INN) + bitta mashina + bitta sana   (import)
  *   1 qator = bitta O'zbek eksportyori (INN) + bitta xaridor + bitta sana   (eksport — faylda mashina va ГТД yo'q)
  * Tonnaj va narx qo'shiladi, "Товарных позиций" — birlashgan tovar qatorlari soni,
@@ -117,6 +118,7 @@ class ZanjeerExport
         private TradeDataset $dataset,
         private array $params = [],
         private ?array $windows = null,
+        private bool $merge = false,
     ) {
         $this->addresses = new ShortAddress();
     }
@@ -183,9 +185,9 @@ class ZanjeerExport
                 $read++;
                 $mapped = $this->dataset === TradeDataset::Export ? $this->mapExport($item) : $this->mapImport($item);
 
-                if ($item->group_key !== $groupKey) {
+                if ((string) $item->group_key !== $groupKey) {
                     $flush();
-                    $groupKey = $item->group_key;
+                    $groupKey = (string) $item->group_key;
                     $group = $this->newGroup($mapped);
                 } else {
                     $this->merge($group, $mapped);
@@ -378,7 +380,8 @@ class ZanjeerExport
 
         return $query
             ->select('*')
-            ->selectRaw($concat("COALESCE({$date}, '')", $company, $partner).' as group_key')
+            // birlashtirilmasa — har bir qator o'z guruhi (id)
+            ->selectRaw(($this->merge ? $concat("COALESCE({$date}, '')", $company, $partner) : $grammar->wrap('id')).' as group_key')
             ->orderByRaw("{$date} desc")
             ->orderByRaw($company)
             ->orderByRaw($partner)

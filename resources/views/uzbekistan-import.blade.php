@@ -39,6 +39,9 @@
     .zj-option strong { display: block; }
     .zj-option span { display: block; color: var(--text-2); font-size: .84rem; margin-top: 2px; overflow-wrap: anywhere; }
     .zanjeer-dialog { max-width: 480px; }
+    .zj-merge { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: .84rem; color: var(--text-2); cursor: pointer; }
+    .zj-merge input { margin-top: 3px; accent-color: var(--primary); }
+    .zj-merge strong { display: block; color: var(--text); font-size: .9rem; }
 
     /* Asosiy filtrlar (tepada) */
     .filters-card { padding: 16px 20px; margin-bottom: 16px; }
@@ -1529,7 +1532,7 @@
                     <div class="dialog-icon">${App.icon('share')}</div>
                     <div style="min-width:0">
                         <h2 id="zjTitle">Zanjeer formatida yuklash</h2>
-                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi: qatorlar ${DATASET === 'export' ? 'eksportyor + xaridor + sana' : 'kompaniya + mashina + sana'} bo'yicha birlashtiriladi.</p>
+                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi. Har bir qator alohida yoziladi.</p>
                     </div>
                 </div>
                 <div class="zj-options">
@@ -1542,6 +1545,13 @@
                         <div><strong>Bugun yuklangan fayllar</strong><span data-today-text>Tekshirilmoqda...</span></div>
                     </label>
                 </div>
+                <label class="zj-merge">
+                    <input type="checkbox" data-merge>
+                    <span>
+                        <strong>${DATASET === 'export' ? 'Xaridor' : 'Mashina'} bo'yicha birlashtirish</strong>
+                        ${DATASET === 'export' ? 'Eksportyor + xaridor + sana' : 'Kompaniya + mashina + sana'} bir xil qatorlar bitta qator bo'ladi (tonnaj va narx qo'shiladi). Qatorlar soni ancha kamayadi.
+                    </span>
+                </label>
                 <div class="form-error" data-error hidden style="margin-top:10px"></div>
                 <div class="dialog-actions">
                     <button type="button" class="btn btn-secondary" data-answer="no">Bekor qilish</button>
@@ -1590,7 +1600,8 @@
             yes.disabled = true;
             errorEl.hidden = true;
             try {
-                await queueExport({ ...body, format: 'zanjeer', scope });
+                const merge = backdrop.querySelector('[data-merge]').checked;
+                await queueExport({ ...body, format: 'zanjeer', scope, merge });
                 close();
                 App.toast('Zanjeer fayli tayyorlanmoqda — tayyor bo\'lgach avtomatik yuklab olinadi');
             } catch (e) {

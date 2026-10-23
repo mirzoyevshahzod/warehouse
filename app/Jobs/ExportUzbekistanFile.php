@@ -39,7 +39,7 @@ class ExportUzbekistanFile implements ShouldQueue
 
         // Zanjeer formati (uz_import_*.xlsx) yoki jadvaldagi barcha ustunlar
         $export = $zanjeer
-            ? new ZanjeerExport($task->tradeDataset(), $params, $zanjeer['windows'] ?? null)
+            ? new ZanjeerExport($task->tradeDataset(), $params, $zanjeer['windows'] ?? null, (bool) ($zanjeer['merge'] ?? false))
             : new TradeDataExport($task->tradeDataset()->model(), $params);
 
         $relative = 'uzbekistan/exports/'.$task->original_name;

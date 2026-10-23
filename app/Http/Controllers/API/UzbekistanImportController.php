@@ -258,6 +258,7 @@ class UzbekistanImportController extends Controller
      *     @OA\Parameter(name="filters[importer_name][values][]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
      *     @OA\Parameter(name="sort[]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
      *     @OA\Parameter(name="format", in="query", description="zanjeer — Zanjeer saytiga yuklash formatida (uz_import_*.xlsx, qatorlar kompaniya+mashina+sana bo'yicha birlashtiriladi)", required=false, @OA\Schema(type="string", enum={"zanjeer"})),
+     *     @OA\Parameter(name="merge", in="query", description="format=zanjeer uchun: true — kompaniya+mashina+sana bo'yicha birlashtirish (standart: har bir qator alohida)", required=false, @OA\Schema(type="boolean")),
      *     @OA\Parameter(name="scope", in="query", description="format=zanjeer uchun: all — barcha ma'lumotlar (filtrlar bilan), today — bugun yuklangan fayllar", required=false, @OA\Schema(type="string", enum={"all","today"})),
      *     @OA\Response(response=202, description="Vazifa yaratildi"),
      *     @OA\Response(response=422, description="Bugun fayl yuklanmagan (scope=today)")
@@ -268,6 +269,7 @@ class UzbekistanImportController extends Controller
         $request->validate([
             'format' => ['nullable', Rule::in(['zanjeer'])],
             'scope' => ['required_if:format,zanjeer', Rule::in(['all', 'today'])],
+            'merge' => ['nullable', 'boolean'],
         ]);
 
         $dataset = $this->dataset($request);
@@ -290,7 +292,7 @@ class UzbekistanImportController extends Controller
                     $t->finished_at->copy()->addSecond()->format('Y-m-d H:i:s'),
                 ])->values()->all();
             }
-            $params['zanjeer'] = ['scope' => $request->scope, 'windows' => $windows];
+            $params['zanjeer'] = ['scope' => $request->scope, 'windows' => $windows, 'merge' => $request->boolean('merge')];
             $name = ZanjeerExport::fileName($dataset);
         }
 
