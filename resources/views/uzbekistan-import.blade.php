@@ -20,6 +20,26 @@
     }
     .btn.toggle-on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-text); }
 
+    /* Zanjeer formatida yuklash oynasi */
+    .zj-options { display: grid; gap: 10px; margin-top: 16px; }
+    .zj-option {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: border-color .15s, background .15s;
+    }
+    .zj-option:hover { border-color: var(--primary); }
+    .zj-option:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+    .zj-option.disabled { opacity: .55; cursor: not-allowed; }
+    .zj-option input { margin-top: 3px; accent-color: var(--primary); }
+    .zj-option strong { display: block; }
+    .zj-option span { display: block; color: var(--text-2); font-size: .84rem; margin-top: 2px; overflow-wrap: anywhere; }
+    .zanjeer-dialog { max-width: 480px; }
+
     /* Asosiy filtrlar (tepada) */
     .filters-card { padding: 16px 20px; margin-bottom: 16px; }
     .main-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
@@ -377,6 +397,10 @@
         <button type="button" class="btn btn-secondary" id="exportBtn">
             <svg class="icon"><use href="#i-download"/></svg>
             Excel'ga yuklab olish
+        </button>
+        <button type="button" class="btn btn-secondary" id="zanjeerBtn" title="Zanjeer saytiga yuklash uchun uz_{{ $dataset }}_*.xlsx fayl">
+            <svg class="icon"><use href="#i-share"/></svg>
+            Zanjeer formatida yuklash
         </button>
         <button type="button" class="btn btn-secondary" id="filterModeBtn" title="Har bir ustun boshida filtr belgisini ko'rsatish (Excel'dagi kabi)">
             <svg class="icon"><use href="#i-filter"/></svg>
@@ -1452,28 +1476,129 @@
         btn.disabled = true;
 
         try {
-            const body = { filters: {}, sort: state.sort };
-            for (const [name, f] of Object.entries(state.filters)) {
-                body.filters[name] = {
-                    values: (f.values || []).map(String),
-                    mode: f.mode || 'in',
-                    blanks: f.blanks ? 1 : 0,
-                    conditions: f.conditions || [],
-                    logic: f.logic || 'and',
-                };
-            }
-
-            const result = await api(`${API}/export`, { method: 'POST', body: JSON.stringify(body) });
-            tasks.set(result.data.id, result.data);
-            autoDownload.add(result.data.id);
-            tasksTotal++;
-            renderTasks();
-            schedulePoll();
+            await queueExport(exportBody());
         } catch (e) {
-            alert(e.message);
+            App.toast(e.message, 'error');
         } finally {
             btn.disabled = false;
         }
+    }
+
+    /** Jadvaldagi filtrlar va saralash — eksport so'rovi uchun */
+    function exportBody() {
+        const body = { filters: {}, sort: state.sort };
+        for (const [name, f] of Object.entries(state.filters)) {
+            body.filters[name] = {
+                values: (f.values || []).map(String),
+                mode: f.mode || 'in',
+                blanks: f.blanks ? 1 : 0,
+                conditions: f.conditions || [],
+                logic: f.logic || 'and',
+            };
+        }
+        return body;
+    }
+
+    /** Eksportni navbatga qo'yadi; tayyor bo'lgach fayl avtomatik yuklab olinadi */
+    async function queueExport(body) {
+        const result = await api(`${API}/export`, { method: 'POST', body: JSON.stringify(body) });
+        tasks.set(result.data.id, result.data);
+        autoDownload.add(result.data.id);
+        tasksTotal++;
+        renderTasks();
+        schedulePoll();
+        return result;
+    }
+
+    /**
+     * Zanjeer saytiga yuklash formatida (uz_import_*.xlsx / uz_export_*.xlsx) eksport.
+     * Oynada tanlanadi: barcha ma'lumotlar (jadval filtrlari bilan) yoki bugun yuklangan fayllar.
+     * Oynaning o'zi tasdiqlash vazifasini bajaradi.
+     */
+    function openZanjeerDialog() {
+        closePopup();
+        const filtersCount = Object.keys(state.filters).length;
+        const allText = `${state.total !== undefined ? numberFormat.format(state.total) + ' ta qator' : "Jadvaldagi ma'lumotlar"}`
+            + (filtersCount ? ` — ${filtersCount} ta filtr bo'yicha` : ' — filtrsiz, hammasi');
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'dialog-backdrop';
+        backdrop.innerHTML = `
+            <div class="dialog zanjeer-dialog" role="dialog" aria-modal="true" aria-labelledby="zjTitle">
+                <div class="dialog-head">
+                    <div class="dialog-icon">${App.icon('share')}</div>
+                    <div style="min-width:0">
+                        <h2 id="zjTitle">Zanjeer formatida yuklash</h2>
+                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi: qatorlar ${DATASET === 'export' ? 'eksportyor + xaridor + sana' : 'kompaniya + mashina + sana'} bo'yicha birlashtiriladi.</p>
+                    </div>
+                </div>
+                <div class="zj-options">
+                    <label class="zj-option">
+                        <input type="radio" name="zjScope" value="all" checked>
+                        <div><strong>Barcha ma'lumotlar</strong><span>${esc(allText)}</span></div>
+                    </label>
+                    <label class="zj-option" data-today>
+                        <input type="radio" name="zjScope" value="today">
+                        <div><strong>Bugun yuklangan fayllar</strong><span data-today-text>Tekshirilmoqda...</span></div>
+                    </label>
+                </div>
+                <div class="form-error" data-error hidden style="margin-top:10px"></div>
+                <div class="dialog-actions">
+                    <button type="button" class="btn btn-secondary" data-answer="no">Bekor qilish</button>
+                    <button type="button" class="btn btn-primary" data-answer="yes">${App.icon('download')}Yuklab olish</button>
+                </div>
+            </div>`;
+        document.body.appendChild(backdrop);
+
+        const yes = backdrop.querySelector('[data-answer="yes"]');
+        const todayOption = backdrop.querySelector('[data-today]');
+        const todayInput = todayOption.querySelector('input');
+        const errorEl = backdrop.querySelector('[data-error]');
+
+        const close = () => {
+            document.removeEventListener('keydown', onKey, true);
+            backdrop.remove();
+        };
+        const onKey = e => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+        };
+        document.addEventListener('keydown', onKey, true);
+        backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+        backdrop.querySelector('[data-answer="no"]').addEventListener('click', close);
+        yes.focus();
+
+        // bugun yuklangan fayllar
+        api(`${API}/zanjeer/today`).then(result => {
+            const files = result.data;
+            const text = todayOption.querySelector('[data-today-text]');
+            if (!files.length) {
+                text.textContent = `Bugun ${DATASET_LABEL[DATASET].toLowerCase()} fayli yuklanmagan`;
+                todayInput.disabled = true;
+                todayOption.classList.add('disabled');
+                return;
+            }
+            const rows = files.reduce((sum, f) => sum + (f.rows || 0), 0);
+            text.textContent = `${files.length} ta fayl, ${numberFormat.format(rows)} ta qator: `
+                + files.map(f => `${f.name} (${App.fmt.time(f.finished_at)})`).join(', ');
+        }).catch(e => {
+            todayOption.querySelector('[data-today-text]').textContent = e.message;
+        });
+
+        yes.addEventListener('click', async () => {
+            const scope = backdrop.querySelector('input[name="zjScope"]:checked').value;
+            const body = scope === 'all' ? exportBody() : {};
+            yes.disabled = true;
+            errorEl.hidden = true;
+            try {
+                await queueExport({ ...body, format: 'zanjeer', scope });
+                close();
+                App.toast('Zanjeer fayli tayyorlanmoqda — tayyor bo\'lgach avtomatik yuklab olinadi');
+            } catch (e) {
+                errorEl.textContent = e.message;
+                errorEl.hidden = false;
+                yes.disabled = false;
+            }
+        });
     }
 
     async function downloadExport(task) {
@@ -1942,6 +2067,7 @@
         if (ok) upload(file);
     });
     document.getElementById('exportBtn').addEventListener('click', startExport);
+    document.getElementById('zanjeerBtn').addEventListener('click', openZanjeerDialog);
     document.getElementById('filterModeBtn').addEventListener('click', () => {
         state.filterMode = !state.filterMode;
         localStorage.setItem(STORAGE.filterMode, state.filterMode ? '1' : '0');

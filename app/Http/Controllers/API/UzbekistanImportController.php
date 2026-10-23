@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Exports\ZanjeerExport;
 use App\Jobs\ExportUzbekistanFile;
 use App\Jobs\ImportUzbekistanFile;
 use App\Models\UzbekistanImport;
 use App\Models\UzbekistanImportTask;
+use App\Support\DashboardStats;
 use App\Support\ExcelFilter;
 use App\Support\FirmDirectory;
 use App\Support\TradeDataset;
@@ -255,19 +257,51 @@ class UzbekistanImportController extends Controller
      *     tags={"Uzbekistan Import"},
      *     @OA\Parameter(name="filters[importer_name][values][]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
      *     @OA\Parameter(name="sort[]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
-     *     @OA\Response(response=202, description="Vazifa yaratildi")
+     *     @OA\Parameter(name="format", in="query", description="zanjeer — Zanjeer saytiga yuklash formatida (uz_import_*.xlsx, qatorlar kompaniya+mashina+sana bo'yicha birlashtiriladi)", required=false, @OA\Schema(type="string", enum={"zanjeer"})),
+     *     @OA\Parameter(name="scope", in="query", description="format=zanjeer uchun: all — barcha ma'lumotlar (filtrlar bilan), today — bugun yuklangan fayllar", required=false, @OA\Schema(type="string", enum={"all","today"})),
+     *     @OA\Response(response=202, description="Vazifa yaratildi"),
+     *     @OA\Response(response=422, description="Bugun fayl yuklanmagan (scope=today)")
      * )
      */
     public function export(Request $request)
     {
+        $request->validate([
+            'format' => ['nullable', Rule::in(['zanjeer'])],
+            'scope' => ['required_if:format,zanjeer', Rule::in(['all', 'today'])],
+        ]);
+
+        $dataset = $this->dataset($request);
+        $params = $this->filterParams($request);
+        $name = 'uzbekistan_'.$dataset->value.'_{id}_'.now()->format('Y_m_d_His').'.xlsx';
+
+        if ($request->format === 'zanjeer') {
+            $windows = null;
+            if ($request->scope === 'today') {
+                $uploads = $this->todayUploads($dataset);
+                if ($uploads->isEmpty()) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => "Bugun {$dataset->label()} fayli yuklanmagan (yoki hali tugamagan)",
+                    ], 422);
+                }
+                // bugungi fayllar yozgan qatorlar: har bir yuklash jarayoni davomida updated_at qo'yilgan
+                $windows = $uploads->map(fn (UzbekistanImportTask $t) => [
+                    $t->started_at->copy()->subSecond()->format('Y-m-d H:i:s'),
+                    $t->finished_at->copy()->addSecond()->format('Y-m-d H:i:s'),
+                ])->values()->all();
+            }
+            $params['zanjeer'] = ['scope' => $request->scope, 'windows' => $windows];
+            $name = ZanjeerExport::fileName($dataset);
+        }
+
         $task = UzbekistanImportTask::create([
             'type' => UzbekistanImportTask::TYPE_EXPORT,
-            'dataset' => $this->dataset($request)->value,
+            'dataset' => $dataset->value,
             'status' => UzbekistanImportTask::STATUS_PENDING,
             'user_id' => $request->user()?->id,
-            'params' => $this->filterParams($request),
+            'params' => $params,
         ]);
-        $task->update(['original_name' => 'uzbekistan_'.$task->dataset.'_'.$task->id.'_'.now()->format('Y_m_d_His').'.xlsx']);
+        $task->update(['original_name' => str_replace('{id}', $task->id, $name)]);
 
         ExportUzbekistanFile::dispatch($task);
 
@@ -276,6 +310,43 @@ class UzbekistanImportController extends Controller
             'message' => 'Export fonda tayyorlanmoqda',
             'data' => $task
         ], 202);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/uzbekistan-import/zanjeer/today",
+     *     summary="Bugun yuklangan fayllar (Zanjeer formatidagi eksport uchun)",
+     *     description="Eksport ma'lumotlari uchun — /api/uzbekistan-export/zanjeer/today",
+     *     tags={"Uzbekistan Import"},
+     *     @OA\Response(response=200, description="[{id, name, rows, finished_at}]")
+     * )
+     */
+    public function zanjeerToday(Request $request)
+    {
+        return response()->json([
+            'status' => true,
+            'data' => $this->todayUploads($this->dataset($request))->map(fn (UzbekistanImportTask $t) => [
+                'id' => $t->id,
+                'name' => $t->original_name,
+                'rows' => $t->processed_rows,
+                'finished_at' => $t->finished_at?->toIso8601String(),
+            ])->values(),
+        ]);
+    }
+
+    /** Bugun (Toshkent vaqti) muvaffaqiyatli yuklangan shu bo'lim fayllari */
+    private function todayUploads(TradeDataset $dataset)
+    {
+        $todayStart = now(DashboardStats::TIMEZONE)->startOfDay()->utc();
+
+        return UzbekistanImportTask::query()
+            ->where('type', UzbekistanImportTask::TYPE_IMPORT)
+            ->where('dataset', $dataset->value)
+            ->where('status', UzbekistanImportTask::STATUS_COMPLETED)
+            ->whereNotNull('started_at')
+            ->where('finished_at', '>=', $todayStart)
+            ->orderBy('id')
+            ->get();
     }
 
     /**

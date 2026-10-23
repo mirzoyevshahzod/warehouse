@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/filter-options', [UzbekistanImportController::class, 'filterOptions'])->defaults('dataset', $dataset);
             Route::get('/firms', [UzbekistanImportController::class, 'firms'])->defaults('dataset', $dataset);
             Route::post('/export', [UzbekistanImportController::class, 'export'])->defaults('dataset', $dataset);
+            Route::get('/zanjeer/today', [UzbekistanImportController::class, 'zanjeerToday'])->defaults('dataset', $dataset);
         });
     }
     // fayl yuklash (turi avtomatik aniqlanadi) va vazifalar — ikkala yo'nalish uchun umumiy

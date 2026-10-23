@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Exports\TradeDataExport;
+use App\Exports\ZanjeerExport;
 use App\Models\UzbekistanImportTask;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +34,13 @@ class ExportUzbekistanFile implements ShouldQueue
     public function handle(): void
     {
         $task = $this->task;
-        $export = new TradeDataExport($task->tradeDataset()->model(), $task->params ?? []);
+        $params = $task->params ?? [];
+        $zanjeer = $params['zanjeer'] ?? null;
+
+        // Zanjeer formati (uz_import_*.xlsx) yoki jadvaldagi barcha ustunlar
+        $export = $zanjeer
+            ? new ZanjeerExport($task->tradeDataset(), $params, $zanjeer['windows'] ?? null)
+            : new TradeDataExport($task->tradeDataset()->model(), $params);
 
         $relative = 'uzbekistan/exports/'.$task->original_name;
         Storage::disk('local')->makeDirectory('uzbekistan/exports');
@@ -45,6 +52,7 @@ class ExportUzbekistanFile implements ShouldQueue
             $task->update(['processed_rows' => $written]);
         });
 
+        // Zanjeer formatida qatorlar birlashtiriladi — oxirida fayldagi qatorlar soni ko'rsatiladi
         $task->update(['total_rows' => $rows, 'processed_rows' => $rows]);
         $task->markCompleted();
     }
