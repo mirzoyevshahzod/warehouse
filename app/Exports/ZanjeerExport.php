@@ -121,6 +121,7 @@ class ZanjeerExport
         private array $params = [],
         private ?array $windows = null,
         private bool $merge = false,
+        private ?string $transport = null,
     ) {
         $this->addresses = new ShortAddress();
     }
@@ -493,6 +494,8 @@ class ZanjeerExport
     /** "Barcha ma'lumotlar" — jadval filtrlari; "bugun yuklangan" — bugungi fayllar yozgan qatorlar */
     private function baseQuery(Builder $query): Builder
     {
+        $this->transportScope($query);
+
         if ($this->windows !== null) {
             return $query->where(function (Builder $q) {
                 foreach ($this->windows as [$from, $to]) {
@@ -502,6 +505,29 @@ class ZanjeerExport
         }
 
         return $query->filter($this->params);
+    }
+
+    /** Transport turlari: qaysi ustun va qiymat boshlanishi (importda "ЖД:" kabi yozuvlar ham uchraydi) */
+    private const TRANSPORT = [
+        'import' => ['column' => 'transport_type', 'auto' => 'АВТО', 'rail' => 'ЖД'],
+        'export' => ['column' => 'transportation_method', 'auto' => 'ROAD', 'rail' => 'RAIL'],
+    ];
+
+    /** Faqat avto, faqat vagonlar (temir yo'l) yoki ikkalasi birga; null — cheklovsiz */
+    private function transportScope(Builder $query): void
+    {
+        if ($this->transport === null) {
+            return;
+        }
+
+        $config = self::TRANSPORT[$this->dataset->value];
+        $kinds = $this->transport === 'both' ? ['auto', 'rail'] : [$this->transport];
+
+        $query->where(function (Builder $q) use ($config, $kinds) {
+            foreach ($kinds as $kind) {
+                $q->orWhere($config['column'], 'like', $config[$kind].'%');
+            }
+        });
     }
 
     // ================= Excel varag'i =================

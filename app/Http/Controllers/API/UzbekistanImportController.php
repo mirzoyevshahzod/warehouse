@@ -258,6 +258,7 @@ class UzbekistanImportController extends Controller
      *     @OA\Parameter(name="filters[importer_name][values][]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
      *     @OA\Parameter(name="sort[]", in="query", required=false, @OA\Schema(type="array", @OA\Items(type="string"))),
      *     @OA\Parameter(name="format", in="query", description="zanjeer — Zanjeer saytiga yuklash formatida (uz_import_*.xlsx, qatorlar kompaniya+mashina+sana bo'yicha birlashtiriladi)", required=false, @OA\Schema(type="string", enum={"zanjeer"})),
+     *     @OA\Parameter(name="transport", in="query", description="format=zanjeer uchun: auto — faqat avto, rail — faqat vagonlar (temir yo'l), both — ikkalasi (standart)", required=false, @OA\Schema(type="string", enum={"auto","rail","both"})),
      *     @OA\Parameter(name="merge", in="query", description="format=zanjeer uchun: true — kompaniya+mashina+sana bo'yicha birlashtirish (standart: har bir qator alohida)", required=false, @OA\Schema(type="boolean")),
      *     @OA\Parameter(name="scope", in="query", description="format=zanjeer uchun: all — barcha ma'lumotlar (filtrlar bilan), today — bugun yuklangan fayllar", required=false, @OA\Schema(type="string", enum={"all","today"})),
      *     @OA\Response(response=202, description="Vazifa yaratildi"),
@@ -270,6 +271,7 @@ class UzbekistanImportController extends Controller
             'format' => ['nullable', Rule::in(['zanjeer'])],
             'scope' => ['required_if:format,zanjeer', Rule::in(['all', 'today'])],
             'merge' => ['nullable', 'boolean'],
+            'transport' => ['nullable', Rule::in(['auto', 'rail', 'both'])],
         ]);
 
         $dataset = $this->dataset($request);
@@ -292,7 +294,12 @@ class UzbekistanImportController extends Controller
                     $t->finished_at->copy()->addSecond()->format('Y-m-d H:i:s'),
                 ])->values()->all();
             }
-            $params['zanjeer'] = ['scope' => $request->scope, 'windows' => $windows, 'merge' => $request->boolean('merge')];
+            $params['zanjeer'] = [
+                'scope' => $request->scope,
+                'windows' => $windows,
+                'merge' => $request->boolean('merge'),
+                'transport' => $request->input('transport', 'both'),
+            ];
             $name = ZanjeerExport::fileName($dataset);
         }
 

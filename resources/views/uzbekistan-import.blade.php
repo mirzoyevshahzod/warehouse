@@ -39,6 +39,10 @@
     .zj-option strong { display: block; }
     .zj-option span { display: block; color: var(--text-2); font-size: .84rem; margin-top: 2px; overflow-wrap: anywhere; }
     .zanjeer-dialog { max-width: 480px; }
+    .zj-transport { margin-top: 14px; }
+    .zj-label { font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .zj-transport .segmented { display: flex; }
+    .zj-transport .segmented button { flex: 1; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
     .zj-merge { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: .84rem; color: var(--text-2); cursor: pointer; }
     .zj-merge input { margin-top: 3px; accent-color: var(--primary); }
     .zj-merge strong { display: block; color: var(--text); font-size: .9rem; }
@@ -1545,6 +1549,14 @@
                         <div><strong>Bugun yuklangan fayllar</strong><span data-today-text>Tekshirilmoqda...</span></div>
                     </label>
                 </div>
+                <div class="zj-transport">
+                    <div class="zj-label">Transport turi</div>
+                    <div class="segmented" role="radiogroup" aria-label="Transport turi">
+                        <button type="button" data-transport="auto">${App.icon('truck', 'icon-sm')} Faqat avto</button>
+                        <button type="button" data-transport="rail">${App.icon('rail', 'icon-sm')} Faqat vagon</button>
+                        <button type="button" data-transport="both" class="active">Ikkalasi birga</button>
+                    </div>
+                </div>
                 <label class="zj-merge">
                     <input type="checkbox" data-merge>
                     <span>
@@ -1580,6 +1592,13 @@
         backdrop.querySelector('[data-answer="no"]').addEventListener('click', close);
         yes.focus();
 
+        backdrop.querySelectorAll('[data-transport]').forEach(btn => btn.addEventListener('click', () => {
+            backdrop.querySelectorAll('[data-transport]').forEach(b => {
+                b.classList.toggle('active', b === btn);
+                b.setAttribute('aria-checked', String(b === btn));
+            });
+        }));
+
         // bugun yuklangan fayllar
         api(`${API}/zanjeer/today`).then(result => {
             const files = result.data;
@@ -1604,7 +1623,8 @@
             errorEl.hidden = true;
             try {
                 const merge = backdrop.querySelector('[data-merge]').checked;
-                await queueExport({ ...body, format: 'zanjeer', scope, merge });
+                const transport = backdrop.querySelector('[data-transport].active').dataset.transport;
+                await queueExport({ ...body, format: 'zanjeer', scope, merge, transport });
                 close();
                 App.toast('Zanjeer fayli tayyorlanmoqda — tayyor bo\'lgach avtomatik yuklab olinadi');
             } catch (e) {

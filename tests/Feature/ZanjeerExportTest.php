@@ -168,6 +168,35 @@ class ZanjeerExportTest extends TestCase
         $this->assertSame('0806101001; 6802931000', $buyer['hs_code']);
     }
 
+    public function test_transport_type_can_be_chosen(): void
+    {
+        $this->importRow(['item_no' => '1', 'transport_type' => 'АВТО']);
+        $this->importRow(['item_no' => '2', 'transport_type' => 'ЖД']);
+        $this->importRow(['item_no' => '3', 'transport_type' => 'ЖД:']); // faylda shunday yozuv ham bor
+        $this->importRow(['item_no' => '4', 'transport_type' => 'АВИА']);
+
+        $transports = fn (array $body) => collect(array_slice($this->export('import', ['scope' => 'all'] + $body), 1))
+            ->pluck(16)->sort()->values()->all(); // "Вид перевозки"
+
+        $this->assertSame(['АВТО'], $transports(['transport' => 'auto']));
+        $this->assertSame(['ЖД', 'ЖД:'], $transports(['transport' => 'rail']));
+        $this->assertSame(['АВТО', 'ЖД', 'ЖД:'], $transports(['transport' => 'both']));
+        $this->assertSame(['АВТО', 'ЖД', 'ЖД:'], $transports([])); // standart — ikkalasi
+
+        // eksport: ROAD / RAIL / AIR
+        $this->exportRow(['transportation_method' => 'ROAD']);
+        $this->exportRow(['transportation_method' => 'RAIL']);
+        $this->exportRow(['transportation_method' => 'AIR']);
+        $exportTransports = fn (string $transport) => collect(array_slice($this->export('export', ['scope' => 'all', 'transport' => $transport]), 1))
+            ->pluck(15)->sort()->values()->all();
+        $this->assertSame(['ROAD'], $exportTransports('auto'));
+        $this->assertSame(['RAIL'], $exportTransports('rail'));
+        $this->assertSame(['RAIL', 'ROAD'], $exportTransports('both'));
+
+        Queue::fake();
+        $this->postJson('/api/uzbekistan-import/export', ['format' => 'zanjeer', 'scope' => 'all', 'transport' => 'ship'])->assertStatus(422);
+    }
+
     public function test_all_scope_respects_table_filters(): void
     {
         $this->importRow(['item_no' => '1']);
