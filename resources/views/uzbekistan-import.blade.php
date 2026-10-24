@@ -1548,8 +1548,11 @@
                 <label class="zj-merge">
                     <input type="checkbox" data-merge>
                     <span>
-                        <strong>${DATASET === 'export' ? 'Xaridor' : 'Mashina'} bo'yicha birlashtirish</strong>
-                        ${DATASET === 'export' ? 'Eksportyor + xaridor + sana' : 'Kompaniya + mashina + sana'} bir xil qatorlar bitta qator bo'ladi (tonnaj va narx qo'shiladi). Qatorlar soni ancha kamayadi.
+                        <strong>Bitta yukni bitta qatorga birlashtirish</strong>
+                        ${DATASET === 'export'
+                            ? "Eksportyor, xaridor, sana va boradigan davlat bir xil bo'lsa"
+                            : "Importyor, eksportyor, sana va mashina raqami bir xil bo'lsa (mashina raqami bo'lmasa — kelib chiqish davlati)"}
+                        qatorlar qo'shiladi: kg va narx yig'iladi, tovarlar umumiy nom bilan yoziladi (masalan, olma turlari — «olma»).
                     </span>
                 </label>
                 <div class="form-error" data-error hidden style="margin-top:10px"></div>

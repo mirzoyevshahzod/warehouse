@@ -39,50 +39,67 @@ class ZanjeerExportTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_import_rows_are_grouped_by_company_vehicle_and_date(): void
+    public function test_import_rows_are_grouped_by_importer_exporter_date_and_vehicle(): void
     {
-        // 1-mashina: bitta firma, bitta sana, 2 xil tovar (2 ta ГТД) — bitta qator bo'ladi
-        $this->importRow(['item_no' => '1', 'declaration_number' => '0005777', 'hs_code' => '1701991009', 'gross_weight_kg' => 20000, 'customs_amount_usd' => 1000.5]);
+        // 1-yuk: bir importyor, bir eksportyor, bir kun, bir mashina, bir xil tovar pozitsiyasi (1701) — bitta qator
+        $this->importRow(['item_no' => '1', 'declaration_number' => '0005777', 'hs_code' => '1701991009', 'gross_weight_kg' => 20000, 'customs_amount_usd' => 1000.5,
+            'product_description' => 'CANE OR BEET SUGAR: OTHER: RED SUGAR - WEIGHT: 20 T']);
         $this->importRow(['item_no' => '2', 'declaration_number' => '0005778', 'hs_code' => '1701140000', 'gross_weight_kg' => 25000, 'customs_amount_usd' => 2000.25,
-            'product_description' => 'BEET SUGAR', 'exporter_standard_name' => 'LLC SAXAR 2']);
+            'product_description' => 'CANE OR BEET SUGAR:  OTHER:WHITE SUGAR - WEIGHT: 25 T']);
+        // o'sha mashina, o'sha kun, lekin boshqa eksportyor — alohida qator
+        $this->importRow(['item_no' => '3', 'exporter_standard_name' => 'LLC SAXAR 2', 'gross_weight_kg' => 5000]);
         // boshqa mashina — alohida qator
-        $this->importRow(['item_no' => '3', 'vehicle_number' => '01A777AA', 'trailer_number' => null, 'gross_weight_kg' => 1000]);
+        $this->importRow(['item_no' => '4', 'vehicle_number' => '01A777AA', 'trailer_number' => null, 'gross_weight_kg' => 1000]);
         // boshqa kun — alohida qator (eng yangi sana birinchi chiqadi)
-        $this->importRow(['item_no' => '4', 'date' => '2026-08-30', 'registration_date' => '2026-08-30']);
+        $this->importRow(['item_no' => '5', 'date' => '2026-08-30', 'registration_date' => '2026-08-30']);
 
         $rows = $this->export('import', ['scope' => 'all', 'merge' => true]);
 
         $this->assertSame(array_values(ZanjeerExport::IMPORT_COLUMNS), $rows[0]);
         $this->assertCount(25, $rows[0]);
-        $this->assertCount(4, $rows); // sarlavha + 3 qator
+        $this->assertCount(5, $rows); // sarlavha + 4 qator
 
-        $byVehicle = collect(array_slice($rows, 1, 2))
-            ->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r))
-            ->keyBy('vehicle_number');
-        $first = $byVehicle['70R254EB/707628AA'];
+        $lines = collect(array_slice($rows, 1))->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r));
+        $first = $lines->first(fn ($l) => $l['items_count'] === 2);
         $this->assertSame('LLC BLESSED SUGAR', $first['importer_name']);
         $this->assertSame('312883153', $first['importer_inn']);
         $this->assertSame('МАТКАРИМОВ ФАХРИДДИН', $first['importer_contact_person']);
         $this->assertSame('+998995773577', $first['importer_contact_phone']);
         $this->assertSame('+998973109434', $first['importer_phone']);
         $this->assertSame('UZBEKISTAN, KASHKADARYA REGION, KARSHI', $first['unloading_place']);
-        $this->assertSame('LLC SAXAR; LLC SAXAR 2', $first['exporter_name']);
+        $this->assertSame('LLC SAXAR', $first['exporter_name']);
         $this->assertSame('RUSSIA, KRASNODAR KRAI, PAVLOVSKAYA STATION', $first['loading_place']);
         $this->assertSame('FCA, 02', $first['delivery_terms']);
         $this->assertSame('70R254EB/707628AA', $first['vehicle_number']);
         $this->assertSame('АВТО', $first['transport_type']);
-        $this->assertEquals(45, $first['tonnage']);
+        $this->assertEquals(45, $first['tonnage']);                 // 20 t + 25 t
+        $this->assertEquals(3000.75, $first['value_usd']);          // narxlar qo'shiladi
         $this->assertSame('2026-08-31', $first['date']);
-        $this->assertSame('BEET SUGAR; CANE SUGAR', $first['product']);
-        $this->assertEquals(3000.75, $first['value_usd']);
-        $this->assertSame(2, $first['items_count']);
+        $this->assertSame('CANE OR BEET SUGAR', $first['product']); // "qizil" va "oq" shakar — umumiy nom
         $this->assertSame('1701140000; 1701991009', $first['hs_code']);
         $this->assertSame('0005777; 0005778', $first['declaration_number']);
-        $this->assertSame('', $first['importer_company_std']); // Zanjeer bazasida — bizda yo'q
+        $this->assertSame('', $first['importer_company_std']);     // Zanjeer bazasida — bizda yo'q
 
-        $this->assertSame(1, $byVehicle['01A777AA']['items_count']);
+        $other = $lines->firstWhere('exporter_name', 'LLC SAXAR 2');
+        $this->assertSame(1, $other['items_count']);
+        $this->assertSame('70R254EB/707628AA', $other['vehicle_number']);
+        $this->assertSame(1, $lines->firstWhere('vehicle_number', '01A777AA')['items_count']);
+        $this->assertSame('2026-08-30', $lines->last()['date']);
+    }
 
-        $this->assertSame('2026-08-30', $rows[3][array_search('Дата', $rows[0])]);
+    public function test_different_goods_in_one_load_keep_one_general_name_each(): void
+    {
+        // bitta yukda olma turlari (0808) va uzum (0806): olma — turlarining umumiy nomi, uzum — bosh nomi
+        foreach (['RED APPLES', 'GREEN APPLES', 'YELLOW APPLES'] as $i => $kind) {
+            $this->importRow(['item_no' => (string) ($i + 1), 'hs_code' => '080810800'.$i, 'product_description' => "APPLES, PEARS AND QUINCES, FRESH: APPLES: OTHER: {$kind}"]);
+        }
+        $this->importRow(['item_no' => '9', 'hs_code' => '0806101009', 'product_description' => 'GRAPES, FRESH OR DRIED: FRESH: TABLE GRAPES']);
+
+        $rows = $this->export('import', ['scope' => 'all', 'merge' => true]);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(4, $rows[1][22]); // "Товарных позиций"
+        $this->assertSame('APPLES, PEARS AND QUINCES, FRESH: APPLES; GRAPES, FRESH OR DRIED', $rows[1][19]);
     }
 
     public function test_by_default_every_row_is_exported_separately(): void
@@ -106,18 +123,18 @@ class ZanjeerExportTest extends TestCase
         $this->assertCount(3, $this->export('export', ['scope' => 'all']));
     }
 
-    public function test_import_without_vehicle_groups_by_declaration(): void
+    public function test_import_without_vehicle_groups_by_origin_country(): void
     {
-        $this->importRow(['item_no' => '1', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0001']);
-        $this->importRow(['item_no' => '2', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0001']);
-        $this->importRow(['item_no' => '1', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0002']);
+        // mashina raqami yo'q — o'rniga kelib chiqish davlati
+        $this->importRow(['item_no' => '1', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0001', 'origin_country' => 'CHINA']);
+        $this->importRow(['item_no' => '2', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0002', 'origin_country' => 'CHINA']);
+        $this->importRow(['item_no' => '3', 'vehicle_number' => null, 'trailer_number' => null, 'declaration_number' => '0003', 'origin_country' => 'TURKEY']);
 
         $rows = $this->export('import', ['scope' => 'all', 'merge' => true]);
 
-        $this->assertCount(3, $rows); // ikkita yuk (ГТД) — ikkita qator
-        $counts = [$rows[1][22], $rows[2][22]]; // "Товарных позиций"
-        sort($counts);
-        $this->assertSame([1, 2], $counts);
+        $this->assertCount(3, $rows); // CHINA (2 ta) va TURKEY (1 ta)
+        $byCountry = collect(array_slice($rows, 1))->mapWithKeys(fn ($r) => [$r[20] => $r[22]]); // "Страна происхождения" => "Товарных позиций"
+        $this->assertSame(['CHINA' => 2, 'TURKEY' => 1], $byCountry->sortKeys()->all());
     }
 
     public function test_export_rows_are_grouped_by_exporter_buyer_and_date(): void

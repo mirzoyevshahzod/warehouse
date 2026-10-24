@@ -18,11 +18,13 @@ use PDO;
  * O'zbekiston savdo ma'lumotlarini Zanjeer saytiga yuklash formatida (uz_import_*.xlsx / uz_export_*.xlsx) yozadi.
  *
  * Ustunlar uz-trade-scraper loyihasidagi bilan bir xil. Standart holatda har bir tovar qatori alohida
- * yoziladi ("Товарных позиций" = 1). $merge = true bo'lsa — o'sha loyihadagidek birlashtiriladi:
- *   1 qator = bitta O'zbek kompaniyasi (INN) + bitta mashina + bitta sana   (import)
- *   1 qator = bitta O'zbek eksportyori (INN) + bitta xaridor + bitta sana   (eksport — faylda mashina va ГТД yo'q)
+ * yoziladi ("Товарных позиций" = 1). $merge = true bo'lsa — bitta yuk bitta qatorga birlashtiriladi:
+ *   importyor + eksportyor + sana + mashina raqami bir xil qatorlar qo'shiladi;
+ *   mashina raqami bo'lmasa — mashina o'rniga davlat (importda kelib chiqish, eksportda boradigan davlat).
  * Tonnaj va narx qo'shiladi, "Товарных позиций" — birlashgan tovar qatorlari soni,
- * tovarlar / ТН ВЭД / ГТД va boshqa ro'yxat ustunlari takrorlarsiz "; " bilan birlashadi.
+ * ТН ВЭД / ГТД va boshqa ro'yxat ustunlari takrorlarsiz "; " bilan birlashadi.
+ * Tovar nomi umumiylashtiriladi (generalProducts): bir xil tovar pozitsiyasidagi (ТН ВЭД 4 raqami)
+ * tovarlar — "qizil olma", "yashil olma" — tavsiflarining umumiy qismi bilan bitta nom ("olma") bo'ladi.
  *
  * Qatorlar baza tomonida guruh kaliti bo'yicha saralanib, oqim (stream) bilan o'qiladi va
  * ketma-ket kelgan bir guruh qatorlari PHP'da birlashtiriladi — xotira hajmga bog'liq emas.
@@ -280,10 +282,8 @@ class ZanjeerExport
 
     private function newGroup(array $mapped): array
     {
-        $group = ['items_count' => 1, 'lists' => [], 'values' => []];
-        foreach ($mapped as $column => $value) {
-            $this->put($group, $column, $value);
-        }
+        $group = ['items_count' => 1, 'lists' => [], 'values' => [], 'products' => []];
+        $this->add($group, $mapped);
 
         return $group;
     }
@@ -291,9 +291,104 @@ class ZanjeerExport
     private function merge(array &$group, array $mapped): void
     {
         $group['items_count']++;
+        $this->add($group, $mapped);
+    }
+
+    private function add(array &$group, array $mapped): void
+    {
         foreach ($mapped as $column => $value) {
+            if ($column === 'product' && $this->merge) {
+                $this->putProduct($group, $value, $mapped['hs_code'] ?? null);
+                continue;
+            }
             $this->put($group, $column, $value);
         }
+    }
+
+    /**
+     * Tovar tavsifi ТН ВЭД pozitsiyasi (4 raqam) bo'yicha yig'iladi: har bir pozitsiya uchun
+     * tavsiflarning umumiy boshlang'ich bo'laklari (":" bilan ajratilgan) saqlanadi — xotira tovarlar soniga bog'liq emas.
+     */
+    private function putProduct(array &$group, ?string $description, ?string $hsCode): void
+    {
+        $segments = $this->segments($description);
+        if (! $segments) {
+            return;
+        }
+
+        $heading = substr(preg_replace('/\D/', '', (string) $hsCode), 0, 4) ?: implode(':', array_slice($segments, 0, 1));
+
+        if (! isset($group['products'][$heading])) {
+            $group['products'][$heading] = ['common' => $segments, 'count' => 1, 'first' => $segments];
+
+            return;
+        }
+
+        $product = &$group['products'][$heading];
+        $product['count']++;
+        $common = [];
+        foreach ($product['common'] as $i => $segment) {
+            if (($segments[$i] ?? null) !== $segment) {
+                break;
+            }
+            $common[] = $segment;
+        }
+        $product['common'] = $common;
+    }
+
+    /** "APPLES, FRESH:  OTHER:RED APPLES - WEIGHT: 20 T" => ["APPLES, FRESH", "OTHER", "RED APPLES - WEIGHT", "20 T"] */
+    private function segments(?string $description): array
+    {
+        $description = trim(preg_replace('/\s+/u', ' ', (string) $description));
+        if ($description === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(':', $description)), fn ($s) => $s !== ''));
+    }
+
+    /** Nom sifatida yolg'iz ma'nosiz bo'laklar ("OTHER", "PARTS" ...) */
+    private const GENERIC_SEGMENT = '/^(OTHERS?|OTHER ARTICLES|PARTS|ПРОЧИЕ|ПРОЧИЕ ТОВАРЫ|ЧАСТИ|-)$/u';
+
+    /**
+     * Yukdagi tovarlarning umumiy nomlari: har bir ТН ВЭД pozitsiyasi uchun bitta nom.
+     *   - yuk bitta tovardan iborat bo'lsa — to'liq tavsif (birlashtirish bo'lmagan);
+     *   - pozitsiyada bir nechta tovar bo'lsa — tavsiflarning umumiy qismi ("qizil olma", "yashil olma" => "olma");
+     *   - pozitsiyada bitta tovar bo'lsa — uning bosh nomi (tavsifning birinchi bo'lagi).
+     * Oxiridagi "OTHER" kabi ma'nosiz bo'laklar tashlanadi; nom shunday bo'laklardan boshlansa, keyingisi qo'shiladi.
+     */
+    private function generalProducts(array $products, int $itemsCount): ?string
+    {
+        $names = [];
+        foreach ($products as $product) {
+            if ($itemsCount === 1) {
+                $parts = $product['first'];
+            } else {
+                $parts = $product['count'] > 1 ? $product['common'] : [];
+                while ($parts && preg_match(self::GENERIC_SEGMENT, end($parts))) {
+                    array_pop($parts);
+                }
+                if (! $parts) {
+                    // bosh nom: birinchi ma'noli bo'lakkacha ("PARTS: PLOW SPARE PARTS" — ikkalasi)
+                    foreach ($product['first'] as $segment) {
+                        $parts[] = $segment;
+                        if (! preg_match(self::GENERIC_SEGMENT, $segment)) {
+                            break;
+                        }
+                    }
+                }
+            }
+            $names[implode(': ', $parts)] = true;
+        }
+
+        if (! $names) {
+            return null;
+        }
+
+        $names = array_keys($names);
+        sort($names, SORT_STRING);
+
+        return mb_substr(implode('; ', $names), 0, self::MAX_LIST_LENGTH);
     }
 
     private function put(array &$group, string $column, mixed $value): void
@@ -326,6 +421,8 @@ class ZanjeerExport
         foreach (array_keys($columns) as $column) {
             if ($column === 'items_count') {
                 $row[] = $group['items_count'];
+            } elseif ($column === 'product' && $this->merge) {
+                $row[] = $this->generalProducts($group['products'], $group['items_count']);
             } elseif (isset(self::SUM_COLUMNS[$column])) {
                 $row[] = isset($group['values'][$column]) ? round($group['values'][$column], self::SUM_COLUMNS[$column]) : null;
             } elseif (isset($group['lists'][$column])) {
@@ -366,25 +463,30 @@ class ZanjeerExport
             : 'CONCAT_WS(\'|\', '.implode(', ', $parts).')';
         $w = fn (string $column) => "COALESCE({$grammar->wrap($column)}, '')";
 
+        // Bitta yuk: importyor + eksportyor + sana + mashina raqami (mashina bo'lmasa — davlat)
         if ($this->dataset === TradeDataset::Export) {
             $date = $grammar->wrap('date');
             $company = "COALESCE(NULLIF({$grammar->wrap('exporter_inn')}, ''), {$grammar->wrap('exporter_name')}, '')";
             $partner = $w('importer_name');
+            // eksport faylida mashina raqami yo'q — boradigan davlat
+            $vehicle = $concat("'C'", $w('destination_country'));
         } else {
             $date = "COALESCE({$grammar->wrap('date')}, {$grammar->wrap('registration_date')})";
             $company = "COALESCE(NULLIF({$grammar->wrap('importer_inn')}, ''), {$grammar->wrap('importer_name')}, '')";
-            // mashina raqami; bo'lmasa — chegaradagi transport, u ham bo'lmasa — yuk (ГТД): post + raqam
-            $partner = "COALESCE(NULLIF({$grammar->wrap('vehicle_number')}, ''), NULLIF({$grammar->wrap('border_vehicle_number')}, ''), "
-                .$concat($w('customs_code'), $w('declaration_number')).')';
+            $partner = "COALESCE(NULLIF({$grammar->wrap('exporter_standard_name')}, ''), {$grammar->wrap('exporter_local_name')}, '')";
+            // mashina raqami (tyagach/tirkama, faylda qanday bo'lsa); bo'lmasa — kelib chiqish davlati
+            $vehicle = "CASE WHEN COALESCE({$grammar->wrap('vehicle_number')}, '') <> '' THEN ".$concat("'V'", $w('vehicle_number'), $w('trailer_number'))
+                .' ELSE '.$concat("'C'", $w('origin_country')).' END';
         }
 
         return $query
             ->select('*')
             // birlashtirilmasa — har bir qator o'z guruhi (id)
-            ->selectRaw(($this->merge ? $concat("COALESCE({$date}, '')", $company, $partner) : $grammar->wrap('id')).' as group_key')
+            ->selectRaw(($this->merge ? $concat("COALESCE({$date}, '')", $company, $partner, $vehicle) : $grammar->wrap('id')).' as group_key')
             ->orderByRaw("{$date} desc")
             ->orderByRaw($company)
             ->orderByRaw($partner)
+            ->orderByRaw($vehicle)
             ->orderBy('id');
     }
 
