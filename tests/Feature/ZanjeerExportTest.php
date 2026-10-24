@@ -57,10 +57,14 @@ class ZanjeerExportTest extends TestCase
 
         $this->assertSame(array_values(ZanjeerExport::IMPORT_COLUMNS), $rows[0]);
         $this->assertCount(25, $rows[0]);
-        $this->assertCount(5, $rows); // sarlavha + 4 qator
+        $this->assertCount(6, $rows); // sarlavha + 4 yuk, 45 t li yuk 24 t + 21 t ga bo'lingan
 
         $lines = collect(array_slice($rows, 1))->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r));
-        $first = $lines->first(fn ($l) => $l['items_count'] === 2);
+        $parts = $lines->filter(fn ($l) => $l['items_count'] === 2)->values();
+        $this->assertCount(2, $parts);
+        $this->assertEquals([24, 21], $parts->pluck('tonnage')->all());           // 20 t + 25 t = 45 t => 24 t + 21 t
+        $this->assertEquals(3000.75, round($parts->sum('value_usd'), 2));         // narxlar qo'shilgan, bo'linganda jami o'zgarmaydi
+        $first = $parts->first();
         $this->assertSame('LLC BLESSED SUGAR', $first['importer_name']);
         $this->assertSame('312883153', $first['importer_inn']);
         $this->assertSame('МАТКАРИМОВ ФАХРИДДИН', $first['importer_contact_person']);
@@ -72,8 +76,6 @@ class ZanjeerExportTest extends TestCase
         $this->assertSame('FCA, 02', $first['delivery_terms']);
         $this->assertSame('70R254EB/707628AA', $first['vehicle_number']);
         $this->assertSame('АВТО', $first['transport_type']);
-        $this->assertEquals(45, $first['tonnage']);                 // 20 t + 25 t
-        $this->assertEquals(3000.75, $first['value_usd']);          // narxlar qo'shiladi
         $this->assertSame('2026-08-31', $first['date']);
         $this->assertSame('CANE OR BEET SUGAR', $first['product']); // "qizil" va "oq" shakar — umumiy nom
         $this->assertSame('1701140000; 1701991009', $first['hs_code']);
@@ -106,7 +108,7 @@ class ZanjeerExportTest extends TestCase
     {
         // bitta mashina, bitta kun — lekin birlashtirilmaydi
         $this->importRow(['item_no' => '1', 'hs_code' => '1701991009', 'gross_weight_kg' => 20000, 'customs_amount_usd' => 1000.5]);
-        $this->importRow(['item_no' => '2', 'hs_code' => '1701140000', 'gross_weight_kg' => 25000, 'customs_amount_usd' => 2000.25]);
+        $this->importRow(['item_no' => '2', 'hs_code' => '1701140000', 'gross_weight_kg' => 23000, 'customs_amount_usd' => 2000.25]);
         $this->importRow(['item_no' => '3', 'vehicle_number' => '01A777AA', 'trailer_number' => null]);
 
         $rows = $this->export('import', ['scope' => 'all']);
@@ -115,7 +117,7 @@ class ZanjeerExportTest extends TestCase
         $lines = collect(array_slice($rows, 1))->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r));
         $this->assertSame([1, 1, 1], $lines->pluck('items_count')->all());
         $this->assertEqualsCanonicalizing(['1701991009', '1701140000', '1701991009'], $lines->pluck('hs_code')->all());
-        $this->assertEqualsCanonicalizing([20.0, 25.0, 1.0], $lines->pluck('tonnage')->map(fn ($t) => (float) $t)->all());
+        $this->assertEqualsCanonicalizing([20.0, 23.0, 1.0], $lines->pluck('tonnage')->map(fn ($t) => (float) $t)->all());
 
         // eksport ham
         $this->exportRow(['net_weight_kg' => 500]);
@@ -195,6 +197,33 @@ class ZanjeerExportTest extends TestCase
 
         Queue::fake();
         $this->postJson('/api/uzbekistan-import/export', ['format' => 'zanjeer', 'scope' => 'all', 'transport' => 'ship'])->assertStatus(422);
+    }
+
+    public function test_heavy_rows_are_split_by_truck_and_wagon_capacity(): void
+    {
+        // bitta ГТД bir nechta transportni qamragan, faylda bitta raqam
+        $this->importRow(['item_no' => '1', 'transport_type' => 'АВТО', 'vehicle_number' => 'A1', 'gross_weight_kg' => 125340, 'customs_amount_usd' => 1000]);
+        $this->importRow(['item_no' => '2', 'transport_type' => 'ЖД', 'vehicle_number' => 'W1', 'trailer_number' => null, 'gross_weight_kg' => 150000, 'customs_amount_usd' => 300]);
+        $this->importRow(['item_no' => '3', 'transport_type' => 'АВИА', 'vehicle_number' => 'P1', 'trailer_number' => null, 'gross_weight_kg' => 100000]);
+        $this->importRow(['item_no' => '4', 'transport_type' => 'АВТО', 'vehicle_number' => 'A2', 'trailer_number' => null, 'gross_weight_kg' => 24000]); // aynan 24 t — bo'linmaydi
+
+        $lines = collect(array_slice($this->export('import', ['scope' => 'all', 'transport' => 'both']), 1))
+            ->map(fn ($r) => array_combine(array_keys(ZanjeerExport::IMPORT_COLUMNS), $r));
+
+        $auto = $lines->filter(fn ($l) => str_starts_with($l['vehicle_number'], 'A1'))->values();
+        $this->assertEquals([24, 24, 24, 24, 24, 5.34], $auto->pluck('tonnage')->all());   // 125.34 t => 5 × 24 t + 5.34 t
+        $this->assertEquals(1000, round($auto->sum('value_usd'), 2));
+        $this->assertEquals(191.48, $auto[0]['value_usd']);                               // 1000 × 24 / 125.34 = 191.479…
+        $this->assertSame([1, 1, 1, 1, 1, 1], $auto->pluck('items_count')->all());
+
+        $rail = $lines->where('vehicle_number', 'W1')->values();
+        $this->assertEquals([70, 70, 10], $rail->pluck('tonnage')->all());               // 150 t => 2 × 70 t + 10 t
+        $this->assertEquals(300, round($rail->sum('value_usd'), 2));
+
+        $this->assertEquals([24], $lines->where('vehicle_number', 'A2')->pluck('tonnage')->all());
+
+        // avia bo'linmaydi (transport=both avia'ni olmaydi — shuning uchun alohida tekshiramiz)
+        $this->assertCount(0, $lines->where('vehicle_number', 'P1'));
     }
 
     public function test_all_scope_respects_table_filters(): void

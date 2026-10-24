@@ -23,6 +23,7 @@ use PDO;
  *   mashina raqami bo'lmasa — mashina o'rniga davlat (importda kelib chiqish, eksportda boradigan davlat).
  * Tonnaj va narx qo'shiladi, "Товарных позиций" — birlashgan tovar qatorlari soni,
  * ТН ВЭД / ГТД va boshqa ro'yxat ustunlari takrorlarsiz "; " bilan birlashadi.
+ * Bitta transport sig'imidan og'ir qator qismlarga bo'linadi (splitByCapacity): avto — 24 t, vagon — 70 t.
  * Tovar nomi umumiylashtiriladi (generalProducts): bir xil tovar pozitsiyasidagi (ТН ВЭД 4 raqami)
  * tovarlar — "qizil olma", "yashil olma" — tavsiflarining umumiy qismi bilan bitta nom ("olma") bo'ladi.
  *
@@ -169,15 +170,18 @@ class ZanjeerExport
             if ($group === null) {
                 return;
             }
-            if ($onSheet >= self::ROWS_PER_SHEET) {
-                $this->finishSheet($writer, $columns, $onSheet);
-                $writer->addNewSheetAndMakeItCurrent();
-                $this->startSheet($writer, $columns, ++$part);
-                $onSheet = 0;
+            // bitta transportga sig'maydigan yuk bir nechta qatorga bo'linadi
+            foreach ($this->splitByCapacity($this->finalize($group, $columns), $columns) as $values) {
+                if ($onSheet >= self::ROWS_PER_SHEET) {
+                    $this->finishSheet($writer, $columns, $onSheet);
+                    $writer->addNewSheetAndMakeItCurrent();
+                    $this->startSheet($writer, $columns, ++$part);
+                    $onSheet = 0;
+                }
+                $writer->addRow(Row::fromValues($values));
+                $written++;
+                $onSheet++;
             }
-            $writer->addRow(Row::fromValues($this->finalize($group, $columns)));
-            $written++;
-            $onSheet++;
             $group = null;
         };
 
@@ -489,6 +493,67 @@ class ZanjeerExport
             ->orderByRaw($partner)
             ->orderByRaw($vehicle)
             ->orderBy('id');
+    }
+
+    /** Bitta transport ko'taradigan eng ko'p yuk (tonna): avto — 24 t, vagon — 70 t */
+    private const CAPACITY = [
+        'auto' => 24,
+        'rail' => 70,
+    ];
+
+    /**
+     * Og'irligi bitta mashina/vagon sig'imidan katta qatorni sig'im bo'yicha qismlarga bo'ladi:
+     * 125 t avto => 5 × 24 t + 1 × 5 t; narx og'irlik nisbatida bo'linadi (jami o'zgarmaydi),
+     * qolgan ustunlar har bir qismda bir xil. Bitta ГТД bir nechta transportni qamrasa ham faylda
+     * faqat bitta raqam bo'lgani uchun shunday bo'linadi. Avia va boshqa turlar bo'linmaydi.
+     *
+     * @return array<int, array> yoziladigan qatorlar
+     */
+    private function splitByCapacity(array $values, array $columns): array
+    {
+        $keys = array_flip(array_keys($columns));
+        $tonnage = $values[$keys['tonnage']];
+        $capacity = self::CAPACITY[$this->transportKind((string) $values[$keys['transport_type']])] ?? null;
+
+        if ($capacity === null || ! is_numeric($tonnage) || $tonnage <= $capacity) {
+            return [$values];
+        }
+
+        $value = $values[$keys['value_usd']];
+        $parts = (int) ceil(round($tonnage / $capacity, 6));
+        $rows = [];
+        $valueLeft = is_numeric($value) ? $value : null;
+
+        for ($i = 1; $i <= $parts; $i++) {
+            $row = $values;
+            $partTonnage = $i < $parts ? $capacity : round($tonnage - $capacity * ($parts - 1), 3);
+            $row[$keys['tonnage']] = $partTonnage;
+
+            if ($valueLeft !== null) {
+                // oxirgi qismga qoldiq — yaxlitlash tufayli jami narx o'zgarmasin
+                $partValue = $i < $parts ? round($value * $partTonnage / $tonnage, 2) : round($valueLeft, 2);
+                $row[$keys['value_usd']] = $partValue;
+                $valueLeft -= $partValue;
+            }
+
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /** "АВТО" / "ROAD" => auto, "ЖД" / "RAIL" => rail */
+    private function transportKind(string $transport): ?string
+    {
+        $config = self::TRANSPORT[$this->dataset->value];
+
+        foreach (['auto', 'rail'] as $kind) {
+            if ($transport !== '' && str_starts_with(mb_strtoupper(trim($transport)), $config[$kind])) {
+                return $kind;
+            }
+        }
+
+        return null;
     }
 
     /** "Barcha ma'lumotlar" — jadval filtrlari; "bugun yuklangan" — bugungi fayllar yozgan qatorlar */

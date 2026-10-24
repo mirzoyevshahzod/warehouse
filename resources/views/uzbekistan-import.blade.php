@@ -1536,7 +1536,7 @@
                     <div class="dialog-icon">${App.icon('share')}</div>
                     <div style="min-width:0">
                         <h2 id="zjTitle">Zanjeer formatida yuklash</h2>
-                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi. Har bir qator alohida yoziladi.</p>
+                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi. Har bir qator alohida yoziladi. Sig'imdan og'ir yuklar bo'linadi: avto — 24 t lik, vagon — 70 t lik qatorlarga (narx ham shu nisbatda).</p>
                     </div>
                 </div>
                 <div class="zj-options">
