@@ -358,6 +358,9 @@
     .firm-item .firm-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .firm-item .firm-meta { font-size: .8rem; color: var(--muted); }
     .firm-item .firm-contact { font-size: .8rem; color: var(--success); font-weight: 600; }
+    .firm-item .firm-contact.other { color: var(--muted); font-weight: 500; }
+    .person-kinds { display: flex; margin-bottom: 12px; }
+    .person-kinds button { flex: 1; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .form-field { display: flex; flex-direction: column; gap: 4px; }
     .form-field.wide { grid-column: 1 / -1; }
@@ -424,7 +427,7 @@
             <span class="count-badge" id="firmsCount" hidden></span>
         </button>
         @if ($dataset === 'export')
-            <button type="button" class="btn btn-secondary" id="contactBtn" title="Eksportyor firmaga mas'ul xodim biriktirish">
+            <button type="button" class="btn btn-secondary" id="contactBtn" title="Eksportyor firmaga mas'ul xodim yoki deklarant biriktirish">
                 <svg class="icon"><use href="#i-user-plus"/></svg>
                 Xodim qo'shish
             </button>
@@ -494,6 +497,7 @@
         filterMode: `${STORAGE_PREFIX}.filterMode`,
         perPage: `${STORAGE_PREFIX}.perPage`,
         tasksExpanded: `${STORAGE_PREFIX}.tasksExpanded`,
+        addedColumns: `${STORAGE_PREFIX}.addedColumns`,
     };
 
     /** Birinchi ochilganda ko'rinadigan ustunlar */
@@ -503,6 +507,7 @@
         'invoice_amount_usd', 'customs_value_usd', 'destination_country', 'destination',
         'transaction_method', 'transportation_method',
         'responsible_person_name', 'responsible_person_position', 'responsible_person_phone',
+        'declarant_name', 'declarant_phone', 'declarant_email', 'declarant_company',
     ] : [
         'registration_date', 'declaration_number', 'item_no',
         'importer_name', 'importer_inn', 'importer_region',
@@ -510,7 +515,16 @@
         'hs_code', 'product_description', 'brand',
         'net_weight_kg', 'customs_amount_usd', 'origin_country',
         'trade_mode', 'transport_type', 'vehicle_number', 'trailer_number',
+        'declaring_unit', 'declarant_name', 'applicant_phone', 'applicant_email',
     ];
+
+    /**
+     * Keyinroq standart ro'yxatga qo'shilgan ustunlar: ustunlarni o'zi tanlagan foydalanuvchida ham
+     * bir marta avtomatik ko'rinadi (keyin yashirsa — yashirin qoladi).
+     */
+    const ADDED_COLUMNS = DATASET === 'export'
+        ? ['declarant_name', 'declarant_phone', 'declarant_email', 'declarant_company']
+        : ['declaring_unit', 'declarant_name', 'applicant_phone', 'applicant_email'];
 
     /** Uzun matnli ustunlar — qisqartirib ko'rsatiladi */
     const LONG_COLUMNS = [
@@ -591,6 +605,29 @@
             return `${d}.${m}.${y}`;
         }
         return String(value);
+    }
+
+    /**
+     * Ko'rinadigan ustunlar: saqlangan tanlov (bo'lmasa — standart ro'yxat). Saqlangan tanlovga
+     * hali ko'rsatilmagan yangi standart ustunlar (ADDED_COLUMNS) bir marta qo'shiladi.
+     */
+    function initialColumns(names) {
+        let saved = [];
+        let shown = [];
+        try { saved = JSON.parse(localStorage.getItem(STORAGE.columns) || '[]'); } catch (e) {}
+        try { shown = JSON.parse(localStorage.getItem(STORAGE.addedColumns) || '[]'); } catch (e) {}
+        saved = (Array.isArray(saved) ? saved : []).filter(n => names.includes(n));
+        localStorage.setItem(STORAGE.addedColumns, JSON.stringify(ADDED_COLUMNS));
+
+        if (!saved.length) return DEFAULT_COLUMNS.filter(n => names.includes(n));
+
+        const fresh = ADDED_COLUMNS.filter(n => !(Array.isArray(shown) && shown.includes(n)) && !saved.includes(n));
+        if (!fresh.length) return saved;
+
+        // jadval tartibida
+        const visible = names.filter(n => saved.includes(n) || fresh.includes(n));
+        localStorage.setItem(STORAGE.columns, JSON.stringify(visible));
+        return visible;
     }
 
     function column(name) {
@@ -1764,6 +1801,11 @@
                         ${f.contacts.length > 1 ? `<span class="muted">(${numberFormat.format(c.rows)} qator)</span>` : ''}
                     </span></div>`).join('')
                 : `<div class="line"><span>👤</span><span class="muted">${labels.noContact}</span></div>`;
+            const declarants = (f.declarants || []).map(d => `
+                    <div class="line contact"><span>🧾</span><span>
+                        Deklarant: <strong>${esc(d.full_name)}</strong>${d.company ? ' — ' + esc(d.company) : ''}${d.phone ? ' · ' + esc(d.phone) : ''}${d.email ? ' · ' + esc(d.email) : ''}
+                        ${f.declarants.length > 1 ? `<span class="muted">(${numberFormat.format(d.rows)} qator)</span>` : ''}
+                    </span></div>`).join('');
 
             return `
                 <div class="firm-card">
@@ -1783,6 +1825,7 @@
                         ${address ? `<div class="line"><span>📍</span><span title="${esc(f.address.address || '')}">${esc(address)}</span></div>` : ''}
                         ${f.phones?.length ? `<div class="line"><span>📞</span><span>${f.phones.map(esc).join(', ')}</span></div>` : ''}
                         ${contacts}
+                        ${declarants}
                         ${f.countries.length ? `<div class="line"><span>🌍</span><span>${labels.country}:
                             ${f.countries.map(c => `<span class="chip">${esc(c.value)} · ${numberFormat.format(c.rows)}</span>`).join('')}</span></div>` : ''}
                     </div>
@@ -1886,8 +1929,40 @@
     }
 
     /**
-     * Eksportyor firmani (STIR bo'yicha takrorlanmas) tanlab, mas'ul xodimni kiritish.
-     * Saqlanganda xodim shu firmaning barcha qatorlariga yoziladi.
+     * Oynadagi ikki tab: mas'ul xodim va deklarant. Ikkalasi ham firma (STIR) bo'yicha biriktiriladi
+     * va shu firmaning barcha qatorlariga yoziladi.
+     */
+    const PERSON_KINDS = {
+        contact: {
+            tab: 'Xodim',
+            endpoint: 'contact',
+            noun: 'Xodim',
+            requiredError: 'Xodimning ism familiyasini kiriting',
+            fields: [
+                { name: 'full_name', label: 'Ism familiya *', wide: true, placeholder: 'Masalan: Karimov Aziz Botirovich' },
+                { name: 'position', label: 'Lavozim', placeholder: 'Masalan: Direktor' },
+                { name: 'phone', label: 'Telefon', type: 'tel', maxlength: 30, placeholder: '+998 90 123 45 67' },
+            ],
+            summary: p => `👤 ${esc(p.full_name)}${p.position ? ' — ' + esc(p.position) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}`,
+        },
+        declarant: {
+            tab: 'Deklarant',
+            endpoint: 'declarant',
+            noun: 'Deklarant',
+            requiredError: 'Deklarant ismini kiriting',
+            fields: [
+                { name: 'full_name', label: 'Declarant name *', placeholder: 'Masalan: Yuldashev D.A.' },
+                { name: 'company', label: 'Declarant company', placeholder: 'Masalan: LLC "DM BROKER SERVIS"' },
+                { name: 'phone', label: 'Declarant phone', type: 'tel', maxlength: 30, placeholder: '+998 90 123 45 67' },
+                { name: 'email', label: 'Declarant email', type: 'email', placeholder: 'broker@mail.uz' },
+            ],
+            summary: p => `🧾 ${esc(p.full_name)}${p.company ? ' — ' + esc(p.company) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}${p.email ? ' · ' + esc(p.email) : ''}`,
+        },
+    };
+
+    /**
+     * Eksportyor firmani (STIR bo'yicha takrorlanmas) tanlab, mas'ul xodim yoki deklarantni kiritish.
+     * Saqlanganda ma'lumot shu firmaning barcha qatorlariga yoziladi.
      */
     async function openContactModal() {
         closePopup();
@@ -1898,34 +1973,25 @@
             <div class="popup modal" role="dialog" aria-modal="true">
                 <div class="popup-title">Xodim qo'shish</div>
                 <div class="popup-body">
+                    <div class="segmented person-kinds" role="tablist" aria-label="Kim kiritiladi">
+                        ${Object.entries(PERSON_KINDS).map(([key, k]) => `
+                            <button type="button" role="tab" data-kind="${key}">${k.tab}</button>`).join('')}
+                    </div>
                     <div class="p-section-title" style="margin-top:0">Eksportyor firma</div>
                     <div class="firm-tabs">
-                        <button type="button" class="firm-tab active" data-tab="without">Xodim kiritilmagan <span class="count">0</span></button>
-                        <button type="button" class="firm-tab" data-tab="with">Xodim kiritilgan <span class="count">0</span></button>
+                        <button type="button" class="firm-tab active" data-tab="without"><span class="label"></span> <span class="count">0</span></button>
+                        <button type="button" class="firm-tab" data-tab="with"><span class="label"></span> <span class="count">0</span></button>
                     </div>
                     <input class="p-search" type="search" placeholder="Firma nomi yoki STIR bo'yicha qidirish...">
                     <div class="values-list firms"><div class="values-note">Yuklanmoqda...</div></div>
 
                     <div class="selected-firm">Firmani tanlang</div>
 
-                    <div class="form-grid">
-                        <div class="form-field wide">
-                            <label for="contactName">Ism familiya *</label>
-                            <input id="contactName" type="text" maxlength="255" placeholder="Masalan: Karimov Aziz Botirovich">
-                        </div>
-                        <div class="form-field">
-                            <label for="contactPosition">Lavozim</label>
-                            <input id="contactPosition" type="text" maxlength="255" placeholder="Masalan: Direktor">
-                        </div>
-                        <div class="form-field">
-                            <label for="contactPhone">Telefon</label>
-                            <input id="contactPhone" type="tel" maxlength="30" placeholder="+998 90 123 45 67">
-                        </div>
-                    </div>
+                    <div class="form-grid"></div>
                     <div class="form-error" hidden></div>
                 </div>
                 <div class="popup-footer">
-                    <button class="p-btn danger" data-action="delete" hidden>Xodimni olib tashlash</button>
+                    <button class="p-btn danger" data-action="delete" hidden></button>
                     <div class="right" style="margin-left:auto">
                         <button class="p-btn" data-action="cancel">Bekor qilish</button>
                         <button class="p-btn primary" data-action="save">Saqlash</button>
@@ -1936,17 +2002,16 @@
 
         const modal = backdrop.querySelector('.modal');
         const listEl = modal.querySelector('.firms');
+        const formEl = modal.querySelector('.form-grid');
         const errorEl = modal.querySelector('.form-error');
-        const nameInput = modal.querySelector('#contactName');
-        const positionInput = modal.querySelector('#contactPosition');
-        const phoneInput = modal.querySelector('#contactPhone');
         const deleteBtn = modal.querySelector('[data-action="delete"]');
         const saveBtn = modal.querySelector('[data-action="save"]');
 
         let firms = [];
         let selected = null;
         let search = '';
-        // xodim kiritilgan va kiritilmagan firmalar alohida ro'yxatda
+        // xodim yoki deklarant; kiritilgan va kiritilmagan firmalar alohida ro'yxatda
+        let kind = 'contact';
         let tab = 'without';
 
         const close = () => {
@@ -1963,33 +2028,75 @@
             errorEl.textContent = message || '';
         }
 
+        function input(name) {
+            return formEl.querySelector(`[name="${name}"]`);
+        }
+
+        /** Tanlangan firmaning joriy tabdagi ma'lumoti (xodim yoki deklarant) */
+        function person(firm) {
+            return firm?.[kind] || null;
+        }
+
+        function renderForm() {
+            const k = PERSON_KINDS[kind];
+            const current = person(selected);
+            formEl.innerHTML = k.fields.map(f => `
+                <div class="form-field ${f.wide ? 'wide' : ''}">
+                    <label for="person_${f.name}">${esc(f.label)}</label>
+                    <input id="person_${f.name}" name="${f.name}" type="${f.type || 'text'}" maxlength="${f.maxlength || 255}"
+                           placeholder="${esc(f.placeholder)}" value="${esc(current?.[f.name] || '')}">
+                </div>`).join('');
+            deleteBtn.textContent = `${k.noun}ni olib tashlash`;
+            deleteBtn.hidden = !current;
+        }
+
+        function renderSelected() {
+            const el = modal.querySelector('.selected-firm');
+            if (!selected) {
+                el.textContent = 'Firmani tanlang';
+                return;
+            }
+            el.innerHTML = `
+                <strong>${esc(selected.name || '-')}</strong> (STIR: ${esc(selected.inn)})<br>
+                ${PERSON_KINDS[kind].noun} shu firmaning barcha <strong>${numberFormat.format(selected.rows)}</strong> ta qatoriga yoziladi`;
+        }
+
         function renderFirms() {
+            const k = PERSON_KINDS[kind];
             const q = search.toLowerCase();
             // firmalar serverdan qatorlar soni bo'yicha kamayish tartibida keladi
             const found = firms.filter(f => !q
                 || f.inn.includes(q)
                 || f.names.some(n => n.toLowerCase().includes(q)));
             const groups = {
-                without: found.filter(f => !f.contact),
-                with: found.filter(f => f.contact),
+                without: found.filter(f => !f[kind]),
+                with: found.filter(f => f[kind]),
             };
+            modal.querySelectorAll('.person-kinds button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.kind === kind);
+                btn.setAttribute('aria-selected', String(btn.dataset.kind === kind));
+            });
             modal.querySelectorAll('.firm-tab').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tab === tab);
+                btn.querySelector('.label').textContent = `${k.noun} ${btn.dataset.tab === 'with' ? 'kiritilgan' : 'kiritilmagan'}`;
                 btn.querySelector('.count').textContent = numberFormat.format(groups[btn.dataset.tab].length);
             });
 
             const visible = groups[tab];
             if (!visible.length) {
                 listEl.innerHTML = `<div class="values-note">${q ? 'Firma topilmadi'
-                    : tab === 'with' ? 'Hali hech bir firmaga xodim kiritilmagan' : 'Barcha firmalarga xodim kiritilgan'}</div>`;
+                    : tab === 'with' ? `Hali hech bir firmaga ${k.noun.toLowerCase()} kiritilmagan` : `Barcha firmalarga ${k.noun.toLowerCase()} kiritilgan`}</div>`;
                 return;
             }
 
+            // firmaning ikkala ma'lumoti ham ko'rinadi — joriy tabdagisi birinchi
+            const kinds = [kind, ...Object.keys(PERSON_KINDS).filter(key => key !== kind)];
             listEl.innerHTML = visible.map(f => `
                 <div class="firm-item ${selected?.inn === f.inn ? 'selected' : ''}" data-inn="${esc(f.inn)}">
                     <div class="firm-name" title="${esc(f.names.join(' | '))}">${esc(f.name || '-')}</div>
                     <div class="firm-meta">STIR: ${esc(f.inn)} · ${numberFormat.format(f.rows)} qator${f.names.length > 1 ? ` · ${f.names.length} xil nomda yozilgan` : ''}</div>
-                    ${f.contact ? `<div class="firm-contact">👤 ${esc(f.contact.full_name)}${f.contact.position ? ' — ' + esc(f.contact.position) : ''}${f.contact.phone ? ' · ' + esc(f.contact.phone) : ''}</div>` : ''}
+                    ${kinds.filter(key => f[key]).map(key => `
+                        <div class="firm-contact ${key === kind ? '' : 'other'}">${PERSON_KINDS[key].summary(f[key])}</div>`).join('')}
                 </div>`).join('');
 
             listEl.querySelectorAll('.firm-item').forEach(el => el.addEventListener('click', () => {
@@ -2000,16 +2107,23 @@
         function select(firm) {
             selected = firm;
             showError('');
-            modal.querySelector('.selected-firm').innerHTML = `
-                <strong>${esc(firm.name || '-')}</strong> (STIR: ${esc(firm.inn)})<br>
-                Xodim shu firmaning barcha <strong>${numberFormat.format(firm.rows)}</strong> ta qatoriga yoziladi`;
-            nameInput.value = firm.contact?.full_name || '';
-            positionInput.value = firm.contact?.position || '';
-            phoneInput.value = firm.contact?.phone || '';
-            deleteBtn.hidden = !firm.contact;
+            renderSelected();
+            renderForm();
             renderFirms();
-            nameInput.focus();
+            input('full_name').focus();
         }
+
+        function selectKind(next) {
+            kind = next;
+            tab = 'without';
+            listEl.scrollTop = 0;
+            showError('');
+            renderSelected();
+            renderForm();
+            renderFirms();
+        }
+
+        modal.querySelectorAll('.person-kinds button').forEach(btn => btn.addEventListener('click', () => selectKind(btn.dataset.kind)));
 
         modal.querySelectorAll('.firm-tab').forEach(btn => btn.addEventListener('click', () => {
             tab = btn.dataset.tab;
@@ -2023,12 +2137,17 @@
         });
 
         saveBtn.addEventListener('click', async () => {
+            const k = PERSON_KINDS[kind];
             if (!selected) return showError('Avval firmani tanlang');
-            if (!nameInput.value.trim()) return showError('Xodimning ism familiyasini kiriting');
+
+            const body = Object.fromEntries(k.fields.map(f => [f.name, input(f.name).value.trim()]));
+            if (!body.full_name) return showError(k.requiredError);
+            const email = input('email');
+            if (email && !email.checkValidity()) return showError("Email noto'g'ri kiritilgan");
 
             const ok = await App.confirm({
-                title: 'Xodim saqlansinmi?',
-                message: `${nameInput.value.trim()} — ${selected.name || selected.inn} firmasining barcha ${numberFormat.format(selected.rows)} ta qatoriga yoziladi.`,
+                title: `${k.noun} saqlansinmi?`,
+                message: `${body.full_name} — ${selected.name || selected.inn} firmasining barcha ${numberFormat.format(selected.rows)} ta qatoriga yoziladi.`,
                 confirmText: 'Saqlash',
                 icon: 'user',
             });
@@ -2036,13 +2155,9 @@
 
             saveBtn.disabled = true;
             try {
-                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, {
+                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/${k.endpoint}`, {
                     method: 'PUT',
-                    body: JSON.stringify({
-                        full_name: nameInput.value.trim(),
-                        position: positionInput.value.trim(),
-                        phone: phoneInput.value.trim(),
-                    }),
+                    body: JSON.stringify(body),
                 });
                 close();
                 toast(result.message);
@@ -2055,17 +2170,18 @@
         });
 
         deleteBtn.addEventListener('click', async () => {
+            const k = PERSON_KINDS[kind];
             if (!selected) return;
             const ok = await App.confirm({
-                title: "Xodim olib tashlansinmi?",
-                message: `${selected.name || selected.inn} firmasidan xodim olib tashlanadi va ${numberFormat.format(selected.rows)} ta qatordan tozalanadi.`,
+                title: `${k.noun} olib tashlansinmi?`,
+                message: `${selected.name || selected.inn} firmasidan ${k.noun.toLowerCase()} olib tashlanadi va ${numberFormat.format(selected.rows)} ta qatordan tozalanadi.`,
                 confirmText: "O'chirish",
                 danger: true,
             });
             if (!ok) return;
 
             try {
-                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/contact`, { method: 'DELETE' });
+                const result = await api(`${API}/exporters/${encodeURIComponent(selected.inn)}/${k.endpoint}`, { method: 'DELETE' });
                 close();
                 toast(result.message);
                 loadData();
@@ -2074,6 +2190,7 @@
             }
         });
 
+        selectKind(kind);
         modal.querySelector('.p-search').focus();
 
         try {
@@ -2142,11 +2259,7 @@
             state.columns = meta.columns;
             state.mainFilters = meta.main_filters;
 
-            const names = state.columns.map(c => c.name);
-            let saved = [];
-            try { saved = JSON.parse(localStorage.getItem(STORAGE.columns) || '[]'); } catch (e) {}
-            saved = (Array.isArray(saved) ? saved : []).filter(n => names.includes(n));
-            state.visible = saved.length ? saved : DEFAULT_COLUMNS.filter(n => names.includes(n));
+            state.visible = initialColumns(state.columns.map(c => c.name));
 
             // "Firmalar" oynasidan boshqa bo'limga o'tilganda: ?inn=... — jadval shu firma bo'yicha filtrlanadi
             const url = new URL(window.location.href);

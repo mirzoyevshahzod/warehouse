@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\UzbekistanExport;
 use App\Models\UzbekistanExporterContact;
+use App\Models\UzbekistanExporterDeclarant;
 
 /**
  * "Download_UZBEKISTAN_Export_Trade_Data_for_the_Period_from_YYYY_MM.xlsx" faylini yuklaydi.
@@ -69,10 +70,16 @@ class UzbekistanExportImport extends TradeFileReader
     /** @var array<string, array> STIR => qo'lda kiritilgan xodim ustunlari */
     private array $contacts;
 
+    /** @var array<string, array> STIR => qo'lda kiritilgan deklarant ustunlari */
+    private array $declarants;
+
     public function __construct()
     {
         $this->contacts = UzbekistanExporterContact::all()
             ->mapWithKeys(fn ($c) => [$c->exporter_inn => $c->toExportColumns()])
+            ->all();
+        $this->declarants = UzbekistanExporterDeclarant::all()
+            ->mapWithKeys(fn ($d) => [$d->exporter_inn => $d->toExportColumns()])
             ->all();
     }
 
@@ -103,8 +110,9 @@ class UzbekistanExportImport extends TradeFileReader
             $r[$field] = $this->number($row[self::COL[$field]] ?? null);
         }
 
-        // kalitga kirmaydi — xodim keyin o'zgarsa ham qator o'sha qator bo'lib qoladi
+        // kalitga kirmaydi — xodim/deklarant keyin o'zgarsa ham qator o'sha qator bo'lib qoladi
         $r += $this->contacts[$r['exporter_inn']] ?? UzbekistanExporterContact::emptyExportColumns();
+        $r += $this->declarants[$r['exporter_inn']] ?? UzbekistanExporterDeclarant::emptyExportColumns();
 
         return $r;
     }

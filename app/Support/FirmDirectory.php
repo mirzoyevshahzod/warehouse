@@ -17,6 +17,7 @@ use Illuminate\Support\Collection;
  *   address   — [address, region, district] (ixtiyoriy)
  *   phone     — firma telefoni (ixtiyoriy)
  *   contacts  — [ism, lavozim, telefon]
+ *   declarants — [ism, telefon, email, kompaniya] (ixtiyoriy)
  *   country   — davlat ustuni (import — kelib chiqish, eksport — boradigan davlat)
  */
 class FirmDirectory
@@ -99,8 +100,9 @@ class FirmDirectory
         $countries = $this->top($params, $inns, [$this->firm['country']]);
         $addresses = isset($this->firm['address']) ? $this->top($params, $inns, $this->firm['address']) : collect();
         $phones = isset($this->firm['phone']) ? $this->top($params, $inns, [$this->firm['phone']]) : collect();
+        $declarants = isset($this->firm['declarants']) ? $this->top($params, $inns, $this->firm['declarants']) : collect();
 
-        return $firms->map(function ($firm) use ($inn, $names, $contacts, $countries, $addresses, $phones) {
+        return $firms->map(function ($firm) use ($inn, $names, $contacts, $countries, $addresses, $phones, $declarants) {
             $key = (string) $firm->{$inn};
             [$name, $position, $phone] = $this->firm['contacts'];
             $address = $addresses->get($key)?->first();
@@ -122,6 +124,13 @@ class FirmDirectory
                     'position' => $c->{$position},
                     'phone' => $c->{$phone},
                     'rows' => (int) $c->rows_count,
+                ])->values(),
+                'declarants' => $declarants->get($key, collect())->take(self::LIST_LIMIT)->map(fn ($d) => [
+                    'full_name' => $d->{$this->firm['declarants'][0]},
+                    'phone' => $d->{$this->firm['declarants'][1]},
+                    'email' => $d->{$this->firm['declarants'][2]},
+                    'company' => $d->{$this->firm['declarants'][3]},
+                    'rows' => (int) $d->rows_count,
                 ])->values(),
                 'countries' => $countries->get($key, collect())->take(self::LIST_LIMIT)->map(fn ($c) => [
                     'value' => $c->{$this->firm['country']},

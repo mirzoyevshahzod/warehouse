@@ -107,6 +107,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/uzbekistan-export/exporters', [UzbekistanExporterContactController::class, 'index']);
     Route::put('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'save'])->where('inn', '[0-9A-Za-z]+');
     Route::delete('/uzbekistan-export/exporters/{inn}/contact', [UzbekistanExporterContactController::class, 'destroy'])->where('inn', '[0-9A-Za-z]+');
+    Route::put('/uzbekistan-export/exporters/{inn}/declarant', [UzbekistanExporterContactController::class, 'saveDeclarant'])->where('inn', '[0-9A-Za-z]+');
+    Route::delete('/uzbekistan-export/exporters/{inn}/declarant', [UzbekistanExporterContactController::class, 'destroyDeclarant'])->where('inn', '[0-9A-Za-z]+');
 
     Route::post('/checked-qozoq/import', [CheckedQozoqController::class, 'import'])->middleware('log.upload:checked-qozoq');
     Route::get('/checked-qozoq', [CheckedQozoqController::class, 'index']);

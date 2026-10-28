@@ -20,6 +20,7 @@ class UzbekistanExport extends Model
         'name' => 'exporter_name',
         'date' => 'date',
         'contacts' => ['responsible_person_name', 'responsible_person_position', 'responsible_person_phone'],
+        'declarants' => ['declarant_name', 'declarant_phone', 'declarant_email', 'declarant_company'],
         'country' => 'destination_country',
     ];
 
@@ -57,6 +58,11 @@ class UzbekistanExport extends Model
         'responsible_person_name' => 'Responsible person',
         'responsible_person_position' => 'Responsible person position',
         'responsible_person_phone' => 'Responsible person phone',
+        // qo'lda kiritiladi ("Xodim qo'shish" → "Deklarant") — App\Models\UzbekistanExporterDeclarant
+        'declarant_name' => 'Declarant name',
+        'declarant_phone' => 'Declarant phone',
+        'declarant_email' => 'Declarant email',
+        'declarant_company' => 'Declarant company',
     ];
 
     public const DATE_COLUMNS = ['date'];

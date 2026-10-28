@@ -6,6 +6,7 @@ use App\Jobs\ImportUzbekistanFile;
 use App\Models\User;
 use App\Models\UzbekistanExport;
 use App\Models\UzbekistanExporterContact;
+use App\Models\UzbekistanExporterDeclarant;
 use App\Models\UzbekistanImport;
 use App\Models\UzbekistanImportTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +16,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
 use Tests\TestCase;
 
-/** Eksportyor firmalarga mas'ul xodimni qo'lda biriktirish */
+/** Eksportyor firmalarga mas'ul xodim va deklarantni qo'lda biriktirish */
 class UzbekistanExporterContactTest extends TestCase
 {
     use RefreshDatabase;
@@ -182,6 +183,100 @@ class UzbekistanExporterContactTest extends TestCase
             ->assertNotFound();
 
         $this->assertSame(0, UzbekistanExporterContact::count());
+    }
+
+    public function test_saving_declarant_writes_it_to_all_rows_of_the_firm(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/declarant', [
+            'full_name' => 'Yuldashev D.A.',
+            'phone' => '90 123 45 67',
+            'email' => 'Broker@Mail.UZ',
+            'company' => 'LLC "DM BROKER SERVIS"',
+        ])->assertOk()->assertJsonPath('updated_rows', 5);
+
+        $this->assertSame(5, UzbekistanExport::where('declarant_name', 'Yuldashev D.A.')->count());
+        $this->assertSame(2, UzbekistanExport::whereNull('declarant_name')->count());
+
+        $row = UzbekistanExport::where('exporter_inn', '305048781')->first();
+        $this->assertSame('+998901234567', $row->declarant_phone);
+        $this->assertSame('broker@mail.uz', $row->declarant_email);
+        $this->assertSame('LLC "DM BROKER SERVIS"', $row->declarant_company);
+        // xodim ustunlariga tegilmaydi
+        $this->assertNull($row->responsible_person_name);
+
+        // oynada xodim va deklarant alohida keladi
+        $firm = $this->getJson('/api/uzbekistan-export/exporters?q=305048781')->json('data.0');
+        $this->assertNull($firm['contact']);
+        $this->assertSame('Yuldashev D.A.', $firm['declarant']['full_name']);
+        $this->assertSame('broker@mail.uz', $firm['declarant']['email']);
+
+        // jadval ustunlarida ham, filtrda ham bor
+        $this->assertContains('declarant_company', array_column($this->getJson('/api/uzbekistan-export/columns')->json('columns'), 'name'));
+        $this->getJson('/api/uzbekistan-export?'.http_build_query(['filters' => ['declarant_name' => ['values' => ['Yuldashev D.A.']]]]))
+            ->assertJsonPath('data.total', 5);
+
+        // "Firmalar" oynasida ham ko'rinadi
+        $firms = $this->getJson('/api/uzbekistan-export/firms')->json('data.data');
+        $this->assertSame([[
+            'full_name' => 'Yuldashev D.A.', 'phone' => '+998901234567', 'email' => 'broker@mail.uz',
+            'company' => 'LLC "DM BROKER SERVIS"', 'rows' => 5,
+        ]], $firms[0]['declarants']);
+        $this->assertSame([], $firms[1]['declarants']);
+
+        // tahrirlash — bitta yozuv qoladi
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/declarant', ['full_name' => 'Mukhtorov J.'])->assertOk();
+        $this->assertSame(1, UzbekistanExporterDeclarant::count());
+        $this->assertSame(5, UzbekistanExport::where('declarant_name', 'Mukhtorov J.')->whereNull('declarant_email')->count());
+    }
+
+    public function test_declarant_is_applied_to_newly_uploaded_files_and_removed_on_delete(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/306803919/contact', ['full_name' => 'Valiyev Bobur'])->assertOk();
+        $this->putJson('/api/uzbekistan-export/exporters/306803919/declarant', ['full_name' => 'Yuldashev D.A.', 'company' => 'BROKER LLC'])->assertOk();
+
+        $this->runImport([
+            $this->row('306803919', 'LLC INTERNET TECHNOLOGY', '8'),
+            $this->row('309590756', 'LLC DICLE TEKS', '9'),
+        ]);
+
+        $row = UzbekistanExport::where('hs_code', '8')->first();
+        $this->assertSame('Valiyev Bobur', $row->responsible_person_name);
+        $this->assertSame('Yuldashev D.A.', $row->declarant_name);
+        $this->assertSame('BROKER LLC', $row->declarant_company);
+        $this->assertNull(UzbekistanExport::where('hs_code', '9')->value('declarant_name'));
+
+        // deklarant o'chiriladi, xodim qoladi
+        $this->deleteJson('/api/uzbekistan-export/exporters/306803919/declarant')
+            ->assertOk()
+            ->assertJsonPath('updated_rows', 3);
+        $this->assertSame(0, UzbekistanExporterDeclarant::count());
+        $this->assertSame(9, UzbekistanExport::whereNull('declarant_name')->whereNull('declarant_company')->count());
+        $this->assertSame(3, UzbekistanExport::where('responsible_person_name', 'Valiyev Bobur')->count());
+    }
+
+    public function test_declarant_validation(): void
+    {
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/declarant', ['company' => 'BROKER LLC'])
+            ->assertStatus(422)->assertJsonValidationErrors('full_name');
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/declarant', ['full_name' => 'A', 'phone' => 'abc'])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
+        $this->putJson('/api/uzbekistan-export/exporters/305048781/declarant', ['full_name' => 'A', 'email' => 'not-an-email'])
+            ->assertStatus(422)->assertJsonValidationErrors('email');
+        $this->putJson('/api/uzbekistan-export/exporters/999999999/declarant', ['full_name' => 'A'])
+            ->assertNotFound();
+
+        $this->assertSame(0, UzbekistanExporterDeclarant::count());
+    }
+
+    public function test_import_declarant_columns_are_labelled_declarant(): void
+    {
+        $labels = array_column($this->getJson('/api/uzbekistan-import/columns')->json('columns'), 'label', 'name');
+
+        $this->assertSame('Declarant company', $labels['declaring_unit']);
+        $this->assertSame('Declarant name', $labels['declarant_name']);
+        $this->assertSame('Declarant phone', $labels['applicant_phone']);
+        $this->assertSame('Declarant email', $labels['applicant_email']);
+        $this->assertEmpty(array_filter($labels, fn ($label) => stripos($label, 'applicant') !== false));
     }
 
     private function runImport(array $rows): void
