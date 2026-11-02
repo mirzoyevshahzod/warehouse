@@ -3,7 +3,6 @@
 namespace App\Exports;
 
 use App\Support\DashboardStats;
-use App\Support\ShortAddress;
 use App\Support\TradeDataset;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -15,17 +14,20 @@ use OpenSpout\Writer\XLSX\Writer;
 use PDO;
 
 /**
- * O'zbekiston savdo ma'lumotlarini Zanjeer saytiga yuklash formatida (uz_import_*.xlsx / uz_export_*.xlsx) yozadi.
+ * O'zbekiston savdo ma'lumotlarini Zanjeer saytiga yuklash shablonida yozadi
+ * ("Шаблон импорта - Импортеры.xlsx" / "Шаблон импорта - Экспортеры.xlsx" — 63 ta ustun, ikkalasida bir xil).
  *
- * Ustunlar uz-trade-scraper loyihasidagi bilan bir xil. Standart holatda har bir tovar qatori alohida
- * yoziladi ("Товарных позиций" = 1). $merge = true bo'lsa — bitta yuk bitta qatorga birlashtiriladi:
+ * Import qatorlari shablonga deyarli to'g'ridan-to'g'ri tushadi (maydon nomlari — bazadagi ustunlar).
+ * Eksport faylida ustunlar kam: O'zbek firma — "Exporter's standard name" (STIR'i "Importer code"ga ham yoziladi),
+ * xorijiy xaridor — "Importer name", boradigan davlat — "Trading country", shahar — "Place of delivery".
+ *
+ * Standart holatda har bir tovar qatori alohida yoziladi. $merge = true bo'lsa — bitta yuk bitta qatorga birlashtiriladi:
  *   importyor + eksportyor + sana + mashina raqami bir xil qatorlar qo'shiladi;
  *   mashina raqami bo'lmasa — mashina o'rniga davlat (importda kelib chiqish, eksportda boradigan davlat).
- * Tonnaj va narx qo'shiladi, "Товарных позиций" — birlashgan tovar qatorlari soni,
- * ТН ВЭД / ГТД va boshqa ro'yxat ustunlari takrorlarsiz "; " bilan birlashadi.
+ * Birlashtirilganda: vazn va summalar qo'shiladi, miqdor o'lchov birligi bo'yicha qo'shiladi,
+ * deklaratsiya jami summalari (Total ...) har bir ГТД uchun bir marta qo'shiladi, tovar nomi umumiylashtiriladi
+ * (generalProducts), qolgan ustunlar takrorlarsiz "; " bilan birlashadi.
  * Bitta transport sig'imidan og'ir qator qismlarga bo'linadi (splitByCapacity): avto — 24 t, vagon — 70 t.
- * Tovar nomi umumiylashtiriladi (generalProducts): bir xil tovar pozitsiyasidagi (ТН ВЭД 4 raqami)
- * tovarlar — "qizil olma", "yashil olma" — tavsiflarining umumiy qismi bilan bitta nom ("olma") bo'ladi.
  *
  * Qatorlar baza tomonida guruh kaliti bo'yicha saralanib, oqim (stream) bilan o'qiladi va
  * ketma-ket kelgan bir guruh qatorlari PHP'da birlashtiriladi — xotira hajmga bog'liq emas.
@@ -39,84 +41,101 @@ class ZanjeerExport
     /** Excel katagi chegarasi (32 767 belgi) */
     private const MAX_LIST_LENGTH = 32000;
 
-    /** Import: maydon => sarlavha (uz_import_*.xlsx) */
-    public const IMPORT_COLUMNS = [
-        'importer_name' => 'Название импортера',
-        'importer_contact_person' => 'Контактное лицо (импортер)',
-        'importer_contact_phone' => 'Телефон контактного лица',
-        'importer_company_std' => 'Company Name',
-        'importer_phone' => 'Телефон (импортер)',
-        'unloading_place' => 'Место выгрузки',
-        'importer_email' => 'Email',
-        'importer_inn' => 'ИНН импортера',
-        'importer_country' => 'Country',
-        'exporter_name' => 'Название экспортера',
-        'exporter_inn' => 'ИНН экспортера',
-        'exporter_contact_person' => 'Контактное лицо (экспортер)',
-        'exporter_phone' => 'Телефон (экспортер)',
-        'loading_place' => 'Место погрузки',
-        'delivery_terms' => 'Условия поставки',
-        'vehicle_number' => 'Номер транспорта',
-        'transport_type' => 'Вид перевозки',
-        'tonnage' => 'Тоннаж (т)',
-        'date' => 'Дата',
-        'product' => 'Товар',
-        'origin_country' => 'Страна происхождения',
-        'value_usd' => 'Стоимость (USD)',
-        'items_count' => 'Товарных позиций',
-        'hs_code' => 'ТН ВЭД',
-        'declaration_number' => '№ ГТД',
+    /** Shablon ustunlari: maydon => sarlavha. Maydon nomlari — uzbekistan_imports ustunlari */
+    public const COLUMNS = [
+        'date' => 'Date',
+        'declaration_date' => 'Declaration Date',
+        'regime_type' => 'Import & Export Type',
+        'regime_code' => 'Import and export type code',
+        'item_no' => 'Item No.',
+        'importer_name' => 'Importer name',
+        'importer_address' => "Importer's address",
+        'importer_region' => 'Importer region',
+        'importer_district' => 'Importer district',
+        'importer_village' => 'Importer village',
+        'importer_inn' => 'Importer code',
+        'importer_phone' => "Importer's phone number",
+        'exporter_standard_name' => "Exporter's standard name",
+        'exporter_address' => "Exporter's address",
+        'exporter_country' => 'Exporter country',
+        'exporter_region' => 'Exporter region',
+        'exporter_city' => 'Exporter city',
+        'exporter_street' => 'Exporter street',
+        'exporter_phone' => "Exporter's phone number",
+        'hs_code' => 'HS Code',
+        'product_description' => 'Product description',
+        'brand' => 'Brand',
+        'quantity' => 'Quantity',
+        'quantity_unit' => 'Unit of quantity',
+        'net_weight_kg' => 'Net weight(kg)',
+        'gross_weight_kg' => 'Gross weight(kg)',
+        'invoice_amount_fc' => 'Invoice amount(foreign currency)',
+        'customs_amount_usd' => 'Customs amount(USD)',
+        'customs_amount_fc' => 'Customs amount(foreign currency)',
+        'statistical_amount_usd' => 'Statistical amount(USD)',
+        'total_invoice_amount_fc' => 'Total invoice amount(foreign currency)',
+        'total_customs_amount_fc' => 'Total customs amount(foreign currency)',
+        'total_tariffs' => 'Total tariffs',
+        'contract_currency' => 'Contract currency',
+        'usd_exchange_rate' => 'Exchange rate against the US dollar',
+        'fc_exchange_rate' => 'Exchange rate for foreign currency',
+        'trade_mode' => 'Mode of trade',
+        'trade_mode_code' => 'Trade mode code',
+        'contract_char_code' => 'Digital contract character code',
+        'origin_country' => 'Country of Origin',
+        'delivery_place' => 'Place of delivery',
+        'shipment_country' => 'Country of shipment',
+        'trading_country' => 'Trading country',
+        'transport_country' => 'Transportation country',
+        'transit_country' => 'Transit country',
+        'transit_date' => 'Transit date',
+        'declaring_unit' => 'Declarant company',
+        'declaring_unit_code' => 'Declarant company code',
+        'applicant_address' => 'Declarant address',
+        'declarant_name' => 'Declarant name',
+        'applicant_email' => 'Declarant email',
+        'applicant_phone' => 'Declarant phone',
+        'transport_type' => 'Commodity transportation type',
+        'overseas_transport_type' => 'Overseas transportation mode',
+        'vehicle_number' => 'Vehicle number',
+        'trailer_number' => 'Trailer number',
+        'border_vehicle_number' => 'Border transportation vehicle identification number',
+        'customs_code' => 'Customs code',
+        'border_customs' => 'Border customs',
+        'customs_office' => 'Customs Office',
+        'responsible_person_name' => 'Responsible person',
+        'responsible_person_position' => 'Responsible person position',
+        'responsible_person_phone' => 'Responsible person phone',
     ];
 
-    /** Eksport: O'zbek eksportyori chapda, xorijiy xaridor keyin (uz_export_*.xlsx) */
-    public const EXPORT_COLUMNS = [
-        'exporter_name' => 'Название экспортера',
-        'exporter_contact_person' => 'Контактное лицо (экспортер)',
-        'exporter_contact_phone' => 'Телефон контактного лица',
-        'exporter_company_std' => 'Company Name',
-        'exporter_phone' => 'Телефон (экспортер)',
-        'loading_place' => 'Место погрузки',
-        'exporter_email' => 'Email',
-        'exporter_inn' => 'ИНН экспортера',
-        'exporter_country' => 'Country',
-        'importer_name' => 'Название импортера',
-        'importer_phone' => 'Телефон (импортер)',
-        'unloading_place' => 'Место выгрузки',
-        'importer_country' => 'Страна импортера',
-        'delivery_terms' => 'Условия поставки',
-        'vehicle_number' => 'Номер транспорта',
-        'transport_type' => 'Вид перевозки',
-        'tonnage' => 'Тоннаж (т)',
-        'date' => 'Дата',
-        'product' => 'Товар',
-        'destination_country' => 'Страна назначения',
-        'value_usd' => 'Стоимость (USD)',
-        'items_count' => 'Товарных позиций',
-        'hs_code' => 'ТН ВЭД',
-        'declaration_number' => '№ ГТД',
+    /** Birlashtirilganda qo'shiladigan ustunlar => kasr xonalari; capacity bo'yicha bo'linganda ham nisbatda bo'linadi */
+    private const SUM_COLUMNS = [
+        'net_weight_kg' => 3,
+        'gross_weight_kg' => 3,
+        'invoice_amount_fc' => 2,
+        'customs_amount_usd' => 2,
+        'customs_amount_fc' => 2,
+        'statistical_amount_usd' => 2,
+        'total_tariffs' => 2,
     ];
 
-    /** Bir guruhda bir nechta qiymat bo'lsa — ro'yxat bo'lib birlashadi */
-    private const LIST_COLUMNS = [
-        'importer_name', 'exporter_name', 'loading_place', 'unloading_place', 'delivery_terms', 'product',
-        'origin_country', 'destination_country', 'importer_country', 'hs_code', 'declaration_number', 'vehicle_number',
-    ];
+    /** Deklaratsiya bo'yicha jami summalar — har bir tovar qatorida takrorlanadi, shuning uchun ГТД bo'yicha bir marta qo'shiladi */
+    private const DECLARATION_TOTALS = ['total_invoice_amount_fc', 'total_customs_amount_fc'];
 
-    /** Qo'shiladigan ustunlar */
-    private const SUM_COLUMNS = ['tonnage' => 3, 'value_usd' => 2];
+    private const DATE_COLUMNS = ['date', 'declaration_date', 'transit_date'];
 
-    /** Keng ustunlar (nomlar, manzillar, ro'yxatlar) */
+    private const NUMBER_COLUMNS = ['quantity', 'usd_exchange_rate', 'fc_exchange_rate', ...self::DECLARATION_TOTALS];
+
+    /** Keng ustunlar (nomlar, manzillar, tovar) */
     private const WIDE_COLUMNS = [
-        'importer_name', 'exporter_name', 'importer_company_std', 'exporter_company_std',
-        'unloading_place', 'loading_place', 'importer_contact_person', 'exporter_contact_person', 'product',
+        'importer_name', 'importer_address', 'exporter_standard_name', 'exporter_address',
+        'product_description', 'declaring_unit', 'applicant_address', 'customs_office',
     ];
 
     /**
      * @param  array  $params  jadval filtrlari (ExcelFilter formati) — "barcha ma'lumotlar" uchun
      * @param  array<int, array{0: string, 1: string}>|null  $windows  "bugun yuklangan" — updated_at oraliqlari (fayl yuklangan vaqtlar)
      */
-    private ShortAddress $addresses;
-
     public function __construct(
         private TradeDataset $dataset,
         private array $params = [],
@@ -124,18 +143,10 @@ class ZanjeerExport
         private bool $merge = false,
         private ?string $transport = null,
     ) {
-        $this->addresses = new ShortAddress();
     }
 
-    public static function columns(TradeDataset $dataset): array
-    {
-        return $dataset === TradeDataset::Export ? self::EXPORT_COLUMNS : self::IMPORT_COLUMNS;
-    }
-
-    public static function sheetName(TradeDataset $dataset): string
-    {
-        return $dataset === TradeDataset::Export ? 'Экспорт' : 'Импорт';
-    }
+    /** Varaq nomi shablondagidek */
+    private const SHEET_NAME = 'Sheet';
 
     /** Fayl nomi Zanjeer kutganidek: uz_import_2026-10-23_101530.xlsx (Toshkent vaqti) */
     public static function fileName(TradeDataset $dataset): string
@@ -155,7 +166,7 @@ class ZanjeerExport
      */
     public function store(string $path, ?callable $onProgress = null): int
     {
-        $columns = self::columns($this->dataset);
+        $columns = self::COLUMNS;
         $writer = new Writer();
         $writer->openToFile($path);
 
@@ -171,14 +182,14 @@ class ZanjeerExport
                 return;
             }
             // bitta transportga sig'maydigan yuk bir nechta qatorga bo'linadi
-            foreach ($this->splitByCapacity($this->finalize($group, $columns), $columns) as $values) {
+            foreach ($this->splitByCapacity($this->finalize($group)) as $values) {
                 if ($onSheet >= self::ROWS_PER_SHEET) {
                     $this->finishSheet($writer, $columns, $onSheet);
                     $writer->addNewSheetAndMakeItCurrent();
                     $this->startSheet($writer, $columns, ++$part);
                     $onSheet = 0;
                 }
-                $writer->addRow(Row::fromValues($values));
+                $writer->addRow(Row::fromValues(array_values($values)));
                 $written++;
                 $onSheet++;
             }
@@ -197,7 +208,7 @@ class ZanjeerExport
                     $groupKey = (string) $item->group_key;
                     $group = $this->newGroup($mapped);
                 } else {
-                    $this->merge($group, $mapped);
+                    $this->add($group, $mapped);
                 }
 
                 if ($onProgress && $read % self::PROGRESS_EVERY === 0) {
@@ -218,96 +229,124 @@ class ZanjeerExport
 
     // ================= Maydonlar =================
 
-    /** Import qatori: O'zbek kompaniyasi — importyor, xorijiy — eksportyor */
+    /** Import qatori: shablon ustunlari bazadagi bilan bir xil */
     private function mapImport(object $r): array
     {
-        $vehicle = $r->vehicle_number
-            ? $this->join('/', $r->vehicle_number, $r->trailer_number)
-            : $r->border_vehicle_number;
+        $row = [];
+        foreach (array_keys(self::COLUMNS) as $column) {
+            $row[$column] = $r->{$column} ?? null;
+        }
+        $row['date'] = $r->date ?? $r->registration_date;
 
-        return [
-            'importer_name' => $r->importer_name,
-            'importer_contact_person' => $r->responsible_person_name,   // bojxona yozuvidagi vakil
-            'importer_contact_phone' => $r->responsible_person_phone,
-            'importer_company_std' => null,                             // Zanjeer kompaniyalar bazasida
-            'importer_phone' => $r->importer_phone,
-            'unloading_place' => $this->addresses->short($r->importer_address, 'UZBEKISTAN'),       // "UZBEKISTAN, TASHKENT, MIRABAD"
-            'importer_email' => null,
-            'importer_inn' => $r->importer_inn,
-            'importer_country' => null,
-            'exporter_name' => $r->exporter_standard_name ?: $r->exporter_local_name,
-            'exporter_inn' => $r->exporter_code,
-            'exporter_contact_person' => null,
-            'exporter_phone' => $r->exporter_phone,
-            'loading_place' => $this->addresses->short($r->exporter_address, $r->exporter_country), // "RUSSIA, MOSCOW REGION, KHIMKI"
-            'delivery_terms' => $this->join(', ', $r->trade_mode, $r->trade_mode_code),
-            'vehicle_number' => $vehicle,
-            'transport_type' => $r->transport_type,
-            'tonnage' => $this->tons($r->gross_weight_kg ?? $r->net_weight_kg),
-            'date' => $this->date($r->date ?? $r->registration_date),
-            'product' => $r->product_description,
-            'origin_country' => $r->origin_country,
-            'value_usd' => $this->number($r->customs_amount_usd ?? $r->statistical_amount_usd),
-            'hs_code' => $r->hs_code,
-            'declaration_number' => $r->declaration_number,
-        ];
+        return $this->typed($row) + ['_declaration' => $this->join('|', $r->customs_code, $r->registration_date, $r->declaration_number)];
     }
 
-    /** Eksport qatori: O'zbek kompaniyasi — eksportyor, xorijiy — xaridor */
+    /**
+     * Eksport qatori: O'zbek firma — eksportyor (STIR'i "Importer code"ga ham yoziladi), xorijiy xaridor — importyor.
+     * Eksport faylida yo'q ustunlar bo'sh qoladi.
+     */
     private function mapExport(object $r): array
     {
-        return [
-            'exporter_name' => $r->exporter_name,
-            'exporter_contact_person' => $r->responsible_person_name,   // "Xodim qo'shish" orqali kiritilgan
-            'exporter_contact_phone' => $r->responsible_person_phone,
-            'exporter_company_std' => null,
-            'exporter_phone' => null,
-            'loading_place' => 'UZBEKISTAN',
-            'exporter_email' => null,
-            'exporter_inn' => $r->exporter_inn,
-            'exporter_country' => null,
+        $row = array_fill_keys(array_keys(self::COLUMNS), null);
+
+        return $this->typed(array_replace($row, [
+            'date' => $r->date,
+            'regime_type' => $r->regime_type,
+            'regime_code' => $r->regime_code,
             'importer_name' => $r->importer_name,
-            'importer_phone' => null,
-            'unloading_place' => $this->join(', ', $r->destination_country, $r->destination),
-            'importer_country' => $r->destination_country,
-            'delivery_terms' => $this->join(', ', $r->transaction_method, $r->delivery_condition_code),
-            'vehicle_number' => null,                                   // eksport faylida yo'q
-            'transport_type' => $r->transportation_method,
-            'tonnage' => $this->tons($r->net_weight_kg),
-            'date' => $this->date($r->date),
-            'product' => $r->product_description,
-            'destination_country' => $r->destination_country,
-            'value_usd' => $this->number($r->customs_value_usd ?? $r->invoice_amount_usd),
+            'importer_inn' => $r->exporter_inn,
+            'exporter_standard_name' => $r->exporter_name,
+            'exporter_country' => 'UZBEKISTAN',
             'hs_code' => $r->hs_code,
-            'declaration_number' => null,                               // eksport faylida yo'q
-        ];
+            'product_description' => $r->product_description,
+            'quantity' => $r->quantity,
+            'quantity_unit' => $r->quantity_unit,
+            'net_weight_kg' => $r->net_weight_kg,
+            'invoice_amount_fc' => $r->invoice_amount_usd,
+            'customs_amount_usd' => $r->customs_value_usd,
+            'statistical_amount_usd' => $r->statistical_value_usd,
+            'contract_currency' => $r->invoice_amount_usd !== null ? 'USD' : null,   // invoys summasi faylda USD'da
+            'trade_mode' => $r->transaction_method,
+            'trade_mode_code' => $r->delivery_condition_code,
+            'delivery_place' => $r->destination ?: $r->destination_country,
+            'trading_country' => $r->destination_country,
+            'transit_country' => $r->transit_country,
+            'declaring_unit' => $r->declarant_company,                               // "Xodim qo'shish" → "Deklarant"
+            'declarant_name' => $r->declarant_name,
+            'applicant_email' => $r->declarant_email,
+            'applicant_phone' => $r->declarant_phone,
+            'transport_type' => $r->transportation_method,
+            'responsible_person_name' => $r->responsible_person_name,                // "Xodim qo'shish" → "Xodim"
+            'responsible_person_position' => $r->responsible_person_position,
+            'responsible_person_phone' => $r->responsible_person_phone,
+        ])) + ['_declaration' => null];
+    }
+
+    /** Sanalar — "2026-08-31", sonlar — son, matn — bo'sh joylarsiz (bo'sh matn — null) */
+    private function typed(array $row): array
+    {
+        foreach ($row as $column => $value) {
+            if ($value === null) {
+                continue;
+            }
+            $row[$column] = match (true) {
+                in_array($column, self::DATE_COLUMNS, true) => substr((string) $value, 0, 10),
+                isset(self::SUM_COLUMNS[$column]), in_array($column, self::NUMBER_COLUMNS, true) => is_numeric($value) ? (float) $value : null,
+                default => trim((string) $value) === '' ? null : trim((string) $value),
+            };
+        }
+
+        return $row;
     }
 
     // ================= Birlashtirish =================
 
     private function newGroup(array $mapped): array
     {
-        $group = ['items_count' => 1, 'lists' => [], 'values' => [], 'products' => []];
+        $group = ['items_count' => 0, 'lists' => [], 'sums' => [], 'quantities' => [], 'totals' => [], 'products' => []];
         $this->add($group, $mapped);
 
         return $group;
     }
 
-    private function merge(array &$group, array $mapped): void
-    {
-        $group['items_count']++;
-        $this->add($group, $mapped);
-    }
-
     private function add(array &$group, array $mapped): void
     {
+        $group['items_count']++;
+        $declaration = $mapped['_declaration'] ?? null;
+        unset($mapped['_declaration']);
+
         foreach ($mapped as $column => $value) {
-            if ($column === 'product' && $this->merge) {
+            if ($column === 'product_description' && $this->merge) {
                 $this->putProduct($group, $value, $mapped['hs_code'] ?? null);
-                continue;
+                $this->put($group, $column, $value);
+            } elseif (isset(self::SUM_COLUMNS[$column])) {
+                if ($value !== null) {
+                    $group['sums'][$column] = ($group['sums'][$column] ?? 0) + $value;
+                }
+            } elseif ($column === 'quantity') {
+                // miqdor o'lchov birligi bo'yicha: 100 KG + 20 PCS — alohida
+                if ($value !== null) {
+                    $unit = (string) ($mapped['quantity_unit'] ?? '');
+                    $group['quantities'][$unit] = ($group['quantities'][$unit] ?? 0) + $value;
+                }
+            } elseif (in_array($column, self::DECLARATION_TOTALS, true)) {
+                // har bir ГТД uchun bir marta (deklaratsiya raqami bo'lmasa — har bir qator)
+                if ($value !== null) {
+                    $group['totals'][$column][$declaration ?? 'row'.$group['items_count']] = $value;
+                }
+            } else {
+                $this->put($group, $column, $value);
             }
-            $this->put($group, $column, $value);
         }
+    }
+
+    /** Takrorlanmas qiymatlar (birinchi uchragan tartibda), qiymat turi saqlanadi */
+    private function put(array &$group, string $column, mixed $value): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+        $group['lists'][$column][(string) $value] ??= $value;
     }
 
     /**
@@ -357,29 +396,24 @@ class ZanjeerExport
 
     /**
      * Yukdagi tovarlarning umumiy nomlari: har bir ТН ВЭД pozitsiyasi uchun bitta nom.
-     *   - yuk bitta tovardan iborat bo'lsa — to'liq tavsif (birlashtirish bo'lmagan);
      *   - pozitsiyada bir nechta tovar bo'lsa — tavsiflarning umumiy qismi ("qizil olma", "yashil olma" => "olma");
      *   - pozitsiyada bitta tovar bo'lsa — uning bosh nomi (tavsifning birinchi bo'lagi).
      * Oxiridagi "OTHER" kabi ma'nosiz bo'laklar tashlanadi; nom shunday bo'laklardan boshlansa, keyingisi qo'shiladi.
      */
-    private function generalProducts(array $products, int $itemsCount): ?string
+    private function generalProducts(array $products): ?string
     {
         $names = [];
         foreach ($products as $product) {
-            if ($itemsCount === 1) {
-                $parts = $product['first'];
-            } else {
-                $parts = $product['count'] > 1 ? $product['common'] : [];
-                while ($parts && preg_match(self::GENERIC_SEGMENT, end($parts))) {
-                    array_pop($parts);
-                }
-                if (! $parts) {
-                    // bosh nom: birinchi ma'noli bo'lakkacha ("PARTS: PLOW SPARE PARTS" — ikkalasi)
-                    foreach ($product['first'] as $segment) {
-                        $parts[] = $segment;
-                        if (! preg_match(self::GENERIC_SEGMENT, $segment)) {
-                            break;
-                        }
+            $parts = $product['count'] > 1 ? $product['common'] : [];
+            while ($parts && preg_match(self::GENERIC_SEGMENT, end($parts))) {
+                array_pop($parts);
+            }
+            if (! $parts) {
+                // bosh nom: birinchi ma'noli bo'lakkacha ("PARTS: PLOW SPARE PARTS" — ikkalasi)
+                foreach ($product['first'] as $segment) {
+                    $parts[] = $segment;
+                    if (! preg_match(self::GENERIC_SEGMENT, $segment)) {
+                        break;
                     }
                 }
             }
@@ -396,50 +430,48 @@ class ZanjeerExport
         return mb_substr(implode('; ', $names), 0, self::MAX_LIST_LENGTH);
     }
 
-    private function put(array &$group, string $column, mixed $value): void
-    {
-        if (isset(self::SUM_COLUMNS[$column])) {
-            if ($value !== null) {
-                $group['values'][$column] = ($group['values'][$column] ?? 0) + $value;
-            }
-
-            return;
-        }
-
-        if ($value === null || $value === '') {
-            return;
-        }
-
-        if (in_array($column, self::LIST_COLUMNS, true)) {
-            $group['lists'][$column][trim((string) $value)] = true;
-
-            return;
-        }
-
-        // boshqa ustunlar — guruhdagi birinchi bo'sh bo'lmagan qiymat
-        $group['values'][$column] ??= $value;
-    }
-
-    private function finalize(array $group, array $columns): array
+    /** @return array<string, mixed> maydon => qiymat */
+    private function finalize(array $group): array
     {
         $row = [];
-        foreach (array_keys($columns) as $column) {
-            if ($column === 'items_count') {
-                $row[] = $group['items_count'];
-            } elseif ($column === 'product' && $this->merge) {
-                $row[] = $this->generalProducts($group['products'], $group['items_count']);
-            } elseif (isset(self::SUM_COLUMNS[$column])) {
-                $row[] = isset($group['values'][$column]) ? round($group['values'][$column], self::SUM_COLUMNS[$column]) : null;
-            } elseif (isset($group['lists'][$column])) {
-                $items = array_keys($group['lists'][$column]);
-                sort($items, SORT_STRING);
-                $row[] = mb_substr(implode('; ', $items), 0, self::MAX_LIST_LENGTH);
-            } else {
-                $row[] = $group['values'][$column] ?? null;
-            }
+        foreach (array_keys(self::COLUMNS) as $column) {
+            $list = $group['lists'][$column] ?? [];
+
+            $row[$column] = match (true) {
+                isset(self::SUM_COLUMNS[$column]) => isset($group['sums'][$column]) ? round($group['sums'][$column], self::SUM_COLUMNS[$column]) : null,
+                in_array($column, self::DECLARATION_TOTALS, true) => isset($group['totals'][$column]) ? round(array_sum($group['totals'][$column]), 2) : null,
+                $column === 'quantity' => $this->quantity($group['quantities']),
+                // bitta tovar — to'liq tavsif; bir nechta — umumiy nom
+                $column === 'product_description' && $this->merge && $group['items_count'] > 1 => $this->generalProducts($group['products']),
+                count($list) === 1 => reset($list),
+                count($list) > 1 => mb_substr(implode('; ', $this->sorted(array_keys($list))), 0, self::MAX_LIST_LENGTH),
+                default => null,
+            };
         }
 
         return $row;
+    }
+
+    /** Bitta o'lchov birligi — son; bir nechta — "1500; 20" ("Unit of quantity" — "KG; PCS", tartibi bir xil) */
+    private function quantity(array $quantities): float|string|null
+    {
+        if (! $quantities) {
+            return null;
+        }
+        if (count($quantities) === 1) {
+            return round(reset($quantities), 3);
+        }
+        ksort($quantities, SORT_STRING);
+
+        return implode('; ', array_map(fn ($q) => (string) round($q, 3), $quantities));
+    }
+
+    /** Ro'yxat tartibi: o'lchov birligi miqdor bilan bir xil tartibda bo'lishi uchun — alifbo bo'yicha */
+    private function sorted(array $items): array
+    {
+        sort($items, SORT_STRING);
+
+        return $items;
     }
 
     // ================= So'rov =================
@@ -503,40 +535,44 @@ class ZanjeerExport
 
     /**
      * Og'irligi bitta mashina/vagon sig'imidan katta qatorni sig'im bo'yicha qismlarga bo'ladi:
-     * 125 t avto => 5 × 24 t + 1 × 5 t; narx og'irlik nisbatida bo'linadi (jami o'zgarmaydi),
-     * qolgan ustunlar har bir qismda bir xil. Bitta ГТД bir nechta transportni qamrasa ham faylda
-     * faqat bitta raqam bo'lgani uchun shunday bo'linadi. Avia va boshqa turlar bo'linmaydi.
+     * 125 t avto => 5 × 24 t + 1 × 5 t. Og'irlik — brutto (bo'lmasa netto). Vazn, summa va miqdor
+     * og'irlik nisbatida bo'linadi (oxirgi qismga qoldiq — jami o'zgarmaydi), qolgan ustunlar har bir qismda
+     * bir xil. Bitta ГТД bir nechta transportni qamrasa ham faylda faqat bitta raqam bo'lgani uchun shunday bo'linadi.
+     * Avia va boshqa turlar bo'linmaydi.
      *
      * @return array<int, array> yoziladigan qatorlar
      */
-    private function splitByCapacity(array $values, array $columns): array
+    private function splitByCapacity(array $values): array
     {
-        $keys = array_flip(array_keys($columns));
-        $tonnage = $values[$keys['tonnage']];
-        $capacity = self::CAPACITY[$this->transportKind((string) $values[$keys['transport_type']])] ?? null;
+        $weightColumn = is_numeric($values['gross_weight_kg']) ? 'gross_weight_kg' : 'net_weight_kg';
+        $tonnage = is_numeric($values[$weightColumn]) ? $values[$weightColumn] / 1000 : null;
+        $capacity = self::CAPACITY[$this->transportKind((string) $values['transport_type'])] ?? null;
 
-        if ($capacity === null || ! is_numeric($tonnage) || $tonnage <= $capacity) {
+        if ($capacity === null || $tonnage === null || round($tonnage, 6) <= $capacity) {
             return [$values];
         }
 
-        $value = $values[$keys['value_usd']];
         $parts = (int) ceil(round($tonnage / $capacity, 6));
-        $rows = [];
-        $valueLeft = is_numeric($value) ? $value : null;
+        $shares = [];
+        for ($i = 1; $i < $parts; $i++) {
+            $shares[] = $capacity / $tonnage;
+        }
 
-        for ($i = 1; $i <= $parts; $i++) {
-            $row = $values;
-            $partTonnage = $i < $parts ? $capacity : round($tonnage - $capacity * ($parts - 1), 3);
-            $row[$keys['tonnage']] = $partTonnage;
-
-            if ($valueLeft !== null) {
-                // oxirgi qismga qoldiq — yaxlitlash tufayli jami narx o'zgarmasin
-                $partValue = $i < $parts ? round($value * $partTonnage / $tonnage, 2) : round($valueLeft, 2);
-                $row[$keys['value_usd']] = $partValue;
-                $valueLeft -= $partValue;
+        $split = [...array_keys(self::SUM_COLUMNS), ...(is_float($values['quantity']) ? ['quantity'] : [])];
+        $rows = array_fill(0, $parts, $values);
+        foreach ($split as $column) {
+            if (! is_numeric($values[$column])) {
+                continue;
             }
-
-            $rows[] = $row;
+            $decimals = self::SUM_COLUMNS[$column] ?? 3;
+            $left = $values[$column];
+            foreach ($rows as $i => &$row) {
+                // oxirgi qismga qoldiq — yaxlitlash tufayli jami o'zgarmasin
+                $part = $i < $parts - 1 ? round($values[$column] * $shares[$i], $decimals) : round($left, $decimals);
+                $row[$column] = $part;
+                $left -= $part;
+            }
+            unset($row);
         }
 
         return $rows;
@@ -599,22 +635,20 @@ class ZanjeerExport
 
     private function startSheet(Writer $writer, array $columns, int $part): void
     {
-        $title = self::sheetName($this->dataset);
         $sheet = $writer->getCurrentSheet();
-        $sheet->setName(mb_substr($part > 1 ? "{$title} ({$part})" : $title, 0, 31));
+        $sheet->setName(self::SHEET_NAME.$part);   // shablondagidek: Sheet1, Sheet2 ...
         $sheet->setSheetView((new SheetView())->setFreezeRow(2));
 
         foreach (array_keys($columns) as $index => $column) {
             $width = match (true) {
-                in_array($column, self::WIDE_COLUMNS, true) => 42,
-                isset(self::SUM_COLUMNS[$column]) || $column === 'items_count' => 14,
+                in_array($column, self::WIDE_COLUMNS, true) => 40,
+                isset(self::SUM_COLUMNS[$column]) => 16,
                 default => 20,
             };
             $sheet->setColumnWidth($width, $index + 1);
         }
 
-        $style = (new Style())->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('0F766E')->setShouldWrapText();
-        $writer->addRow(Row::fromValues(array_values($columns), $style));
+        $writer->addRow(Row::fromValues(array_values($columns), (new Style())->setFontBold()));
     }
 
     private function finishSheet(Writer $writer, array $columns, int $rows): void
@@ -629,21 +663,5 @@ class ZanjeerExport
         $parts = array_filter(array_map(fn ($p) => $p === null ? '' : trim($p), $parts), fn ($p) => $p !== '');
 
         return $parts ? implode($separator, $parts) : null;
-    }
-
-    /** Har bir tovar avval yaxlitlanib, keyin qo'shiladi — Zanjeer'dagi hisob bilan bir xil */
-    private function tons($kg): ?float
-    {
-        return is_numeric($kg) ? round($kg / 1000, 3) : null;
-    }
-
-    private function number($value): ?float
-    {
-        return is_numeric($value) ? round((float) $value, 2) : null;
-    }
-
-    private function date($value): ?string
-    {
-        return $value ? substr((string) $value, 0, 10) : null;
     }
 }

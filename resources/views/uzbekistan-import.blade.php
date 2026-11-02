@@ -1573,7 +1573,7 @@
                     <div class="dialog-icon">${App.icon('share')}</div>
                     <div style="min-width:0">
                         <h2 id="zjTitle">Zanjeer formatida yuklash</h2>
-                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl tayyorlanadi. Har bir qator alohida yoziladi. Sig'imdan og'ir yuklar bo'linadi: avto — 24 t lik, vagon — 70 t lik qatorlarga (narx ham shu nisbatda).</p>
+                        <p>Zanjeer saytiga yuklash uchun <b>uz_${DATASET}_….xlsx</b> fayl Zanjeer shablonida (63 ustun) tayyorlanadi. Har bir qator alohida yoziladi. Sig'imdan og'ir yuklar bo'linadi: avto — 24 t lik, vagon — 70 t lik qatorlarga (vazn, narx va miqdor ham shu nisbatda).</p>
                     </div>
                 </div>
                 <div class="zj-options">
@@ -1601,7 +1601,7 @@
                         ${DATASET === 'export'
                             ? "Eksportyor, xaridor, sana va boradigan davlat bir xil bo'lsa"
                             : "Importyor, eksportyor, sana va mashina raqami bir xil bo'lsa (mashina raqami bo'lmasa — kelib chiqish davlati)"}
-                        qatorlar qo'shiladi: kg va narx yig'iladi, tovarlar umumiy nom bilan yoziladi (masalan, olma turlari — «olma»).
+                        qatorlar qo'shiladi: kg, narx va miqdor (o'lchov birligi bo'yicha) yig'iladi, tovarlar umumiy nom bilan yoziladi (masalan, olma turlari — «olma»), qolgan ustunlar «; » bilan birlashadi.
                     </span>
                 </label>
                 <div class="form-error" data-error hidden style="margin-top:10px"></div>
